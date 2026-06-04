@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+  }
+
+  button {
+    display: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

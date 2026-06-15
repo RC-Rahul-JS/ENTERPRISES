@@ -20,7 +20,7 @@ export const staff_tabs = [
     { label: 'Share Holders', route: '' },
     { label: 'DESIGNATION', route: 'designation' },
     { label: 'ASSIGN PERSONAL LEDGER', route: 'assignpersonalledger' },
-    { label: 'ATTANDENCE', route: 'attandence' }
+    { label: 'STAFF', route: 'attandence' }
   ];
 export const report_tabs = Cookies.get('logintype')!=='ca' ? [
     { label: 'TRIAL BALANCE', route: '' },

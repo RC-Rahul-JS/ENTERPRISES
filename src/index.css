@@ -1,5 +1,90 @@
 @import "tailwindcss";
 
+/* ─── Global Mobile Responsiveness ─────────────────────────────────── */
+
+/* Tables: always scrollable horizontally on all pages */
+table {
+  min-width: 100%;
+}
+
+/* Auto-wrap all table container divs that may overflow */
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* On mobile, reduce heavy padding on page containers */
+@media (max-width: 640px) {
+  /* Reduce main container padding on mobile */
+  .max-w-4xl, .max-w-5xl, .max-w-6xl, .max-w-7xl {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /* Tables: force overflow-x-auto on the nearest wrapper */
+  .border.border-gray-300.rounded-xl,
+  .overflow-hidden.shadow-sm {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Trial Balance / Reports filter row: wrap on mobile */
+  .flex.justify-start.items-end {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .flex.justify-start.items-end > div,
+  .flex.justify-start.items-end > button {
+    flex: 1 1 auto;
+    min-width: 140px;
+  }
+  .flex.justify-start.items-end input,
+  .flex.justify-start.items-end select {
+    width: 100% !important;
+  }
+
+  /* Heading sizes: reduce on very small screens */
+  h1.text-3xl { font-size: 1.5rem; line-height: 2rem; }
+  h2.text-2xl { font-size: 1.25rem; line-height: 1.75rem; }
+
+  /* Reduce table cell padding on mobile */
+  td, th {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  /* Action buttons in tables: shrink text */
+  td .flex.items-center.gap-2 > button {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    font-size: 0.65rem;
+  }
+}
+
+/* Ensure all bordered table wrappers are scrollable */
+.border.border-gray-300.rounded-xl {
+  overflow-x: auto;
+}
+
+/* Dashboard welcome card: full width on mobile */
+@media (max-width: 768px) {
+  /* CA welcome card: reduce padding */
+  .rounded-\[40px\] {
+    border-radius: 1.5rem !important;
+  }
+  .p-8.md\:p-16 {
+    padding: 1.5rem !important;
+  }
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;             /* Chrome, Safari, Opera */
+}
+
 
 
 input[type="number"]::-webkit-outer-spin-button,

@@ -200,15 +200,15 @@ export default function TrialBalance() {
             <h1 className="text-3xl font-semibold text-gray-900 mb-6">Trial Balance Report 📊</h1>
 
             {/* Date Filters Row */}
-            <div className="flex justify-start items-end mb-6 bg-white p-4 rounded-xl shadow-md border border-gray-200">
+            <div className="flex flex-wrap justify-start items-end gap-3 mb-6 bg-white p-4 rounded-xl shadow-md border border-gray-200">
                 
                 {/* From Date Input */}
-                <div className="flex flex-col mr-3">
+                <div className="flex flex-col">
                     <label className="text-sm font-medium text-gray-600 mb-1" htmlFor="startDate">From Date</label>
                     <input 
                         type="date" 
                         id="startDate"
-                        className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-40"
+                        className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-40"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
                         aria-label="Start Date"
@@ -216,12 +216,12 @@ export default function TrialBalance() {
                 </div>
                 
                 {/* To Date Input */}
-                <div className="flex flex-col mr-4">
+                <div className="flex flex-col">
                     <label className="text-sm font-medium text-gray-600 mb-1" htmlFor="endDate">To Date</label>
                     <input 
                         type="date" 
                         id="endDate"
-                        className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-40"
+                        className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-40"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
                         aria-label="End Date"
@@ -229,11 +229,11 @@ export default function TrialBalance() {
                 </div>
 
                 {/* To Company Input */}
-                <div className="flex flex-col mr-4">
+                <div className="flex flex-col">
                     <label className="text-sm font-medium text-gray-600 mb-1" htmlFor="company">Company</label>
                     <select
                         id="company"
-                        className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-40"
+                        className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-40"
                         value={company}
                         onChange={(e) => setCompany(e.target.value)}
                         aria-label="Company"

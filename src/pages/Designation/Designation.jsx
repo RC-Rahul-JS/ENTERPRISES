@@ -13,17 +13,38 @@ const DesignationPage = () => {
   const [modalPermissions, setModalPermissions] = useState([]);
   const { getData, postData } = useApi();
 
-  const permissionOptions = [
-    "View Appointments",
-    "Manage Doctors",
-    "Manage Patients",
-    "View Payments",
-    "Access Reports",
+  const permissionGroups = [
+    {
+      sidebar: 'Share Holders',
+      tabs: ['Share Holders', 'DESIGNATION', 'ASSIGN PERSONAL LEDGER', 'STAFF']
+    },
+    {
+      sidebar: 'Accounting',
+      tabs: ['CREATE LEDGER', 'CREATE SUBGROUP', 'CREATE GROUP', 'JOURNAL VOUCHER', 'PAYMENT VOUCHER', 'RECEIPT VOUCHER']
+    },
+    {
+      sidebar: 'Reports',
+      tabs: ['TRIAL BALANCE', 'TRIAL BALANCE_2', 'FINANCIAL', 'TRADING A/c V2', 'STATEMENTS', 'GST SUBLEDGER', 'RCM']
+    },
+    {
+      sidebar: 'Trade',
+      tabs: ['ADD PRODUCT', 'CATEGORIES', 'CUSTOMERS', 'VENDORS', 'CREATE BILL', 'RETURN BILL', 'EXPENSE BOOKING', 'EXPENSE LIST', 'INVENTORY']
+    },
+    {
+      sidebar: 'Settings',
+      tabs: []
+    }
   ];
+
+  // Helper to extract all permissions (sidebars + tabs) as strings
+  const allPermissionsList = permissionGroups.flatMap(group => [
+    `Sidebar: ${group.sidebar}`,
+    ...group.tabs.map(t => `Tab: ${t}`)
+  ]);
 
   const fetchdata = async () => {
     try {
-      const res = await getData("/staff/designations");
+      const res = await getData("/trade/designations");
       console.log(res)
       if (Array.isArray(res)) {
         setDesignations(res);
@@ -42,7 +63,7 @@ const DesignationPage = () => {
     e.preventDefault();
     if (designation.trim() === "") return;
      try {
-        await postData(`/staff/designations`, { name: designation.trim(),permissions: modalPermissions });
+        await postData(`/trade/designation`, { name: designation.trim(),permissions: modalPermissions });
         showSuccessAlert('Success!', editIndex?"Updated Successfully":'Created successfully');
         setDesignation("");
         fetchdata()
@@ -66,7 +87,7 @@ const DesignationPage = () => {
     const updated = [...designations];
     updated[index].name = editValue;
      try {
-        await postData(`/staff/designations`, updated[index]);
+        await postData(`/trade/designation`, updated[index]);
         showSuccessAlert('Success!', 'Updated Successfully');
         fetchdata()
         setDesignation("");
@@ -81,16 +102,34 @@ const DesignationPage = () => {
 
   const handleOpenPermissions = (index) => {
     setSelectedIndex(index);
-    setModalPermissions([...designations[index]?.permissions]||permissionOptions);
+    setModalPermissions([...designations[index]?.permissions] || []);
     setShowModal(true);
   };
 
-  const handleCheckboxChange = (permission) => {
-    setModalPermissions((prevPermissions) =>
-      prevPermissions.includes(permission)
-        ? prevPermissions.filter((p) => p !== permission)
-        : [...prevPermissions, permission]
-    );
+  const handleCheckboxChange = (type, value, group = null) => {
+    const permString = `${type}: ${value}`;
+    
+    setModalPermissions((prevPermissions) => {
+      let newPerms = new Set(prevPermissions);
+      
+      if (newPerms.has(permString)) {
+        // Unchecking
+        newPerms.delete(permString);
+        // If unchecking a Sidebar, also uncheck all its tabs
+        if (type === 'Sidebar' && group) {
+          group.tabs.forEach(t => newPerms.delete(`Tab: ${t}`));
+        }
+      } else {
+        // Checking
+        newPerms.add(permString);
+        // If checking a Tab, also ensure its parent Sidebar is checked
+        if (type === 'Tab' && group) {
+          newPerms.add(`Sidebar: ${group.sidebar}`);
+        }
+      }
+      
+      return Array.from(newPerms);
+    });
   };
 
   const handleSavePermissions = async() => {
@@ -98,7 +137,7 @@ const DesignationPage = () => {
       const updated = [...designations];
       updated[selectedIndex].permissions = modalPermissions;
       try {
-        await postData(`/staff/designations`, {_id: updated[selectedIndex]._id, permissions: modalPermissions,name: updated[selectedIndex].name });
+        await postData(`/trade/designation`, {_id: updated[selectedIndex]._id, permissions: modalPermissions,name: updated[selectedIndex].name });
         showSuccessAlert('Success!',"Updated Successfully");
         fetchdata()
         setDesignation("");
@@ -217,18 +256,48 @@ const DesignationPage = () => {
               </span>
             </h2>
 
-            <div className="space-y-3">
-              {permissionOptions.map((perm, i) => (
-                <label key={i} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={modalPermissions.includes(perm)}
-                    onChange={() => handleCheckboxChange(perm)}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                  />
-                  <span>{perm}</span>
-                </label>
-              ))}
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              {permissionGroups.map((group, i) => {
+                const sidebarPerm = `Sidebar: ${group.sidebar}`;
+                const isSidebarChecked = modalPermissions.includes(sidebarPerm);
+
+                return (
+                  <div key={i} className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                    {/* Sidebar Header Checkbox */}
+                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isSidebarChecked}
+                          onChange={() => handleCheckboxChange('Sidebar', group.sidebar, group)}
+                          className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
+                        />
+                        <span className="font-semibold text-gray-800 text-sm">{group.sidebar}</span>
+                      </label>
+                    </div>
+
+                    {/* Tabs Checkboxes (only shown if sidebar is checked and has tabs) */}
+                    {isSidebarChecked && group.tabs.length > 0 && (
+                      <div className="px-4 py-3 bg-white grid grid-cols-1 gap-2">
+                        {group.tabs.map((tab, j) => {
+                          const tabPerm = `Tab: ${tab}`;
+                          return (
+                            <label key={j} className="flex items-center gap-3 cursor-pointer pl-6">
+                              <input
+                                type="checkbox"
+                                checked={modalPermissions.includes(tabPerm)}
+                                onChange={() => handleCheckboxChange('Tab', tab, group)}
+                                className="w-4 h-4 text-indigo-500 rounded focus:ring-indigo-400 border-gray-200"
+                              />
+                              <span className="text-sm text-gray-600 font-medium">{tab}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex justify-end mt-6 gap-3">

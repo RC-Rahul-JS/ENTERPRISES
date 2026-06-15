@@ -302,21 +302,21 @@ export default function FinancialStatementsView() {
             <hr className="mb-6 border-gray-300"/>
 
             {/* Date Filters Row */}
-            <div className="flex justify-start items-end mb-6 bg-white p-4 rounded-xl shadow-md border border-gray-200">
+            <div className="flex flex-wrap justify-start items-end gap-3 mb-6 bg-white p-4 rounded-xl shadow-md border border-gray-200">
                 {/* Inputs and Buttons here (omitted for brevity, assume they are present) */}
-                <div className="flex flex-col mr-3">
+                <div className="flex flex-col">
                     <label className="text-sm font-medium text-gray-600 mb-1" htmlFor="startDate">From Date</label>
-                    <input type="date" id="startDate" className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-40" value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-label="Start Date"/>
+                    <input type="date" id="startDate" className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-40" value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-label="Start Date"/>
                 </div>
-                <div className="flex flex-col mr-4">
+                <div className="flex flex-col">
                     <label className="text-sm font-medium text-gray-600 mb-1" htmlFor="endDate">To Date</label>
-                    <input type="date" id="endDate" className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-40" value={endDate} onChange={(e) => setEndDate(e.target.value)} aria-label="End Date"/>
+                    <input type="date" id="endDate" className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-40" value={endDate} onChange={(e) => setEndDate(e.target.value)} aria-label="End Date"/>
                 </div>
-                    <div className="flex flex-col mr-4">
+                    <div className="flex flex-col">
                     <label className="text-sm font-medium text-gray-600 mb-1" htmlFor="company">Company</label>
                     <select
                         id="company"
-                        className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-40"
+                        className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-40"
                         value={company}
                         onChange={(e) => setCompany(e.target.value)}
                         aria-label="Company"
@@ -335,7 +335,7 @@ export default function FinancialStatementsView() {
                     {loading ? 'Generating...' : 'Generate Statements'}
                 </button>
                 <button 
-                    className="ml-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors duration-150 h-10" 
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors duration-150 h-10" 
                     onClick={handleClearClick}
                 >
                     Clear

@@ -1,70 +1,30 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Users, 
-  Search, 
-  Plus, 
-  Mail, 
-  Trash2, 
-  Edit3, 
+import {
+  Users,
+  Search,
+  Edit3,
   X,
-  Filter,
-  Calendar as CalendarIcon,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  ChevronLeft,
-  ChevronRight,
-  MapPin,
-  UserCheck,
   Phone,
-  Home
+  Mail,
+  UserCheck,
+  Home,
+  Plus,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  KeyRound
 } from 'lucide-react';
-import useApi from "../../api/useApi";
-import moment from 'moment/moment';
-// --- Mock Data ---
-const INITIAL_EMPLOYEES = [
-  { id: 1, name: 'Sarah Johnson', role: 'Senior Product Designer', email: 'sarah.j@company.com', phone: '+1 (555) 123-4567', address: '123 Maple Ave, San Francisco, CA', department: 'Design', status: 'Active', avatar: 'SJ' },
-  { id: 2, name: 'Michael Chen', role: 'Full Stack Developer', email: 'm.chen@company.com', phone: '+1 (555) 987-6543', address: '456 Oak St, Seattle, WA', department: 'Engineering', status: 'Active', avatar: 'MC' },
-  { id: 3, name: 'Elena Rodriguez', role: 'HR Manager', email: 'elena.r@company.com', phone: '+1 (555) 246-1357', address: '789 Pine Rd, Austin, TX', department: 'People', status: 'On Leave', avatar: 'ER' },
-  { id: 4, name: 'David Smith', role: 'Marketing Specialist', email: 'd.smith@company.com', phone: '+1 (555) 369-2580', address: '101 Cedar Ln, New York, NY', department: 'Marketing', status: 'Active', avatar: 'DS' },
-  { id: 5, name: 'Jessica Lee', role: 'DevOps Engineer', email: 'jlee@company.com', phone: '+1 (555) 159-7531', address: '202 Birch Blvd, Denver, CO', department: 'Engineering', status: 'Active', avatar: 'JL' },
-  { id: 6, name: 'Marcus Taylor', role: 'Sales Lead', email: 'marcus.t@company.com', phone: '+1 (555) 753-9514', address: '303 Spruce Ct, Chicago, IL', department: 'Sales', status: 'Inactive', avatar: 'MT' },
-];
+import useApi from '../../api/useApi';
+import { showErrorAlert, showSuccessAlert } from '../../utils/alerts';
 
-const INITIAL_LEAVE_REQUESTS = [
-  { id: 101, name: 'Michael Chen', type: 'Annual Leave', duration: '3 Days', date: 'Oct 12 - Oct 15', status: 'Pending', avatar: 'MC' },
-  { id: 102, name: 'Jessica Lee', type: 'Sick Leave', duration: '1 Day', date: 'Oct 10', status: 'Pending', avatar: 'JL' },
-];
-
-const DEPARTMENTS = ['All', 'Engineering', 'Design', 'Marketing', 'People', 'Sales'];
-
-// Helper to generate mock activity for the calendar
-const getMockActivity = (day, month, year, at) => {
-  // const seed = day + month + year;
-  // console.log(at)
-
-  const match = at.filter((item)=>(item.month===month&&item.day===day&&item.year===year))
-  if (match.length===0) return null;
-  if (match[0].status==='P') return 'attendance';
-  if (match[0].status==='L') return 'leave';
-  if (match[0].status==='O') return 'duty';
-
-
-  // if (day % 7 === 0 || day % 7 === 6) return null; // Weekends
-  // if (seed % 15 === 0) return 'leave';
-  // if (seed % 12 === 0) return 'duty';
-  // if (seed % 2 === 0) return 'attendance';
-  return null;
-};
-
-// --- Sub-Components ---
-
+// ─────────────────────────────────────────────
+// Badge
+// ─────────────────────────────────────────────
 const Badge = ({ children, status }) => {
   const styles = {
-    Active: 'bg-green-100 text-green-700 border-green-200',
-    'On Leave': 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    Inactive: 'bg-gray-100 text-gray-700 border-gray-200',
-    Pending: 'bg-blue-100 text-blue-700 border-blue-200',
+    Active: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'On Leave': 'bg-amber-100 text-amber-700 border-amber-200',
+    Inactive: 'bg-gray-100 text-gray-600 border-gray-200',
   };
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${styles[status] || styles.Inactive}`}>
@@ -73,482 +33,585 @@ const Badge = ({ children, status }) => {
   );
 };
 
-const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-md" }) => {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className={`bg-white rounded-3xl shadow-2xl w-full ${maxWidth} overflow-hidden animate-in fade-in zoom-in duration-200`}>
-        <div className="flex items-center justify-between p-6 border-b border-slate-100">
-          <h3 className="text-xl font-bold text-slate-900">{title}</h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
-            <X size={20} />
-          </button>
-        </div>
-        <div className="overflow-y-auto max-h-[85vh]">{children}</div>
-      </div>
-    </div>
-  );
-};
-
-const CalendarWidget = ({ employee , at}) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  
-  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
-  
-  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-  const prevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-  };
-
-  const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  };
-
-  const renderDays = () => {
-    const days = [];
-    for (let i = 0; i < firstDayOfMonth; i++) {
-      days.push(<div key={`empty-${i}`} className="h-12 border border-slate-50 bg-slate-50/30"></div>);
-    }
-    for (let d = 1; d <= daysInMonth; d++) {
-      const type = getMockActivity(d, currentDate.getMonth(), currentDate.getFullYear(), at);
-      let dotColor = "";
-      if (type === 'attendance') dotColor = "bg-green-500";
-      if (type === 'leave') dotColor = "bg-amber-500";
-      if (type === 'duty') dotColor = "bg-indigo-500";
-
-      days.push(
-        <div key={d} className="h-12 border border-slate-50 relative flex items-center justify-center hover:bg-slate-50 transition-colors cursor-default group">
-          <span className="text-sm font-medium text-slate-600 z-10">{d}</span>
-          {dotColor && (
-            <div className={`absolute bottom-2 w-1.5 h-1.5 rounded-full ${dotColor} shadow-sm`}></div>
-          )}
-          {type && (
-            <div className="absolute inset-1 rounded-lg opacity-0 group-hover:opacity-10 bg-slate-900 transition-opacity"></div>
-          )}
-        </div>
-      );
-    }
-    return days;
-  };
-
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-      <div className="p-4 bg-slate-50 flex items-center justify-between">
-        <h4 className="font-bold text-slate-800 text-sm">
-          {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-        </h4>
-        <div className="flex gap-1">
-          <button onClick={prevMonth} className="p-1.5 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all text-slate-400 active:scale-90">
-            <ChevronLeft size={16} />
-          </button>
-          <button onClick={nextMonth} className="p-1.5 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all text-slate-400 active:scale-90">
-            <ChevronRight size={16} />
-          </button>
-        </div>
-      </div>
-      <div className="grid grid-cols-7 text-center border-b border-slate-50">
-        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-          <div key={day} className="py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">{day}</div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 bg-white">{renderDays()}</div>
-      <div className="p-4 border-t border-slate-50 grid grid-cols-3 gap-2">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-500"></div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase">Present</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase">Leave</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase">Duty</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default function App() {
-      const { getData, postData } = useApi();
-  const [employees, setEmployees] = useState(INITIAL_EMPLOYEES);
-  const [leaveRequests, setLeaveRequests] = useState(INITIAL_LEAVE_REQUESTS);
+// ─────────────────────────────────────────────
+// Main Staff List
+// ─────────────────────────────────────────────
+export default function StaffList() {
+  const { getData, postData } = useApi();
+  const [employees, setEmployees] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [deptFilter, setDeptFilter] = useState('All');
+  
+  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [viewingEmployee, setViewingEmployee] = useState(null);
-  const [editingEmployee, setEditingEmployee] = useState(null);
-
-  const [AttandenceData, setAttandenceData] = useState({})
-
-  const [formData, setFormData] = useState({ 
-    name: '', 
-    role: '', 
-    email: '', 
-    phone: '', 
-    address: '', 
-    department: 'Engineering', 
-    status: 'Active' 
+  const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Password Update Modal State
+  const [showPwd, setShowPwd] = useState(false);
+  const [pwdTarget, setPwdTarget] = useState({ _id: '', empID: '', name: '' });
+  const [pwdForm, setPwdForm] = useState({ password: '', confirmPassword: '' });
+  const [pwdError, setPwdError] = useState('');
+  
+  // Form State
+  const [validationMessage, setValidationMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [form, setForm] = useState({
+    name: '', phone: '', email: '', dob: '', age: '', address: '',
+    designation: '', status: 'Active',
+    password: '', confirmPassword: ''
   });
+  const [designations, setDesignations] = useState([]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const staffRes = await getData('/trade/list-staff');
+      if (Array.isArray(staffRes)) setEmployees(staffRes);
+
+      const desigRes = await getData('/trade/designations');
+      if (Array.isArray(desigRes)) setDesignations(desigRes);
+    } catch {
+      showErrorAlert('Error', 'Could not load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
 
   const filteredEmployees = useMemo(() => {
-    return employees.filter(emp => {
-      const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           emp.role.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesDept = deptFilter === 'All' || emp.department === deptFilter;
-      return matchesSearch && matchesDept;
+    const term = searchTerm.toLowerCase();
+    return employees.filter(
+      (emp) =>
+        emp.name?.toLowerCase().includes(term) ||
+        emp.phone?.toLowerCase().includes(term) ||
+        emp.email?.toLowerCase().includes(term) ||
+        emp.department?.toLowerCase().includes(term)
+    );
+  }, [employees, searchTerm]);
+
+  const resetForm = () => {
+    setForm({ 
+      name: '', phone: '', email: '', dob: '', age: '', address: '', 
+      designation: '', status: 'Active',
+      password: '', confirmPassword: '' 
     });
-  }, [employees, searchTerm, deptFilter]);
-
-  const handleOpenEditModal = (e, emp = null) => {
-    e.stopPropagation();
-    if (emp) {
-      setEditingEmployee(emp);
-      setFormData({ ...emp });
-    } else {
-      setEditingEmployee(null);
-      setFormData({ name: '', role: '', email: '', phone: '', address: '', department: 'Engineering', status: 'Active' });
-    }
-    setIsModalOpen(true);
-  };
-
-  const handleViewEmployee = async(emp) => {
-    const res = await getData(`/staff/api/get-attendance/${emp.phone}`);
-    setAttandenceData(res.data)
-    setViewingEmployee(emp);
-  };
-
-  const handleSubmit = async(e) => {
-    e.preventDefault();
-    if (editingEmployee) {
-      setEmployees(employees.map(emp => emp._id === editingEmployee._id ? { ...formData, _id: emp._id, avatar: formData.name.split(' ').map(n => n[0]).join('').toUpperCase() } : emp));
-    } else {
-
-        try {
-            const data = {
-    name: formData.name,
-    phone: formData.phone,
-    dob: formData.phone,
-    age: formData.phone,
-    address: formData.address,
-    designation: '699adeffef0f329d90a0f35e',
-    password: "123456",
-    confirmPassword: "123456",
-    photo: null,
-    pAccount:'A17',
-    profile_id:'x',
-    department: 'Engineering', 
-    status: 'Active' ,
-    email:formData.email,
-    role: formData.role
-
-  }
-
-  console.log(data)
-                await postData(`/staff/create`, data );
-                
-        } catch (error) {
-                  console.error("Failed to save group:", error);
-                //   showErrorAlert("Error", "Could not save. Please try again.");   
-        }   
-        
-
-      const newEmp = { ...formData, _id: Date.now(), avatar: formData.name.split(' ').map(n => n[0]).join('').toUpperCase() };
-      setEmployees([newEmp, ...employees]);
-    }
+    setValidationMessage('');
+    setShowPassword(false);
+    setEditingId(null);
     setIsModalOpen(false);
   };
 
-  const deleteEmployee = (e, id) => {
+  const handleEditOpen = (e, emp) => {
     e.stopPropagation();
-    setEmployees(employees.filter(emp => emp._id !== id));
+    setEditingId(emp._id);
+    setForm({
+      name: emp.name || '',
+      phone: emp.phone || '',
+      email: emp.email || '',
+      dob: emp.dob || '',
+      age: emp.age || '',
+      address: emp.address || '',
+      designation: (typeof emp.designation === 'object' && emp.designation !== null) ? emp.designation._id : (emp.designation || ''),
+      status: emp.status || 'Active',
+      password: '', // Leave blank unless they want to update it
+      confirmPassword: '',
+      _id: emp._id
+    });
+    setIsModalOpen(true);
   };
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    if (name === 'dob') {
+      const age = new Date().getFullYear() - new Date(value).getFullYear();
+      setForm((p) => ({ ...p, dob: value, age }));
+    } else {
+      setForm((p) => ({ ...p, [name]: value }));
+    }
+  };
 
-  const fetchdata = async () => {
-        try {
-        //   const res = await getData("/staff/designations");
-          const res2 = await getData("/staff");
-          const req = await getData("/staff/api/get-attendance-req");
-          console.log(res2)
-          setLeaveRequests(req.data)
-          if (Array.isArray(res2)) {
-            // setDesignations(res);
-            setEmployees(res2.filter((item)=>(item.designation==='699adeffef0f329d90a0f35e')));
-          } 
-        } catch (error) {
-          console.error("Failed to load appointments:", error);
-        //   showErrorAlert("Error", "Could not load Data. Please try again."); 
-        }
-      };
-      useEffect(() => {
-            fetchdata();
-          }, []);
+  const generatePassword = () => {
+    const namePart = form.name
+      ? form.name.trim().split(' ').map((n) => n.charAt(0).toUpperCase()).join('')
+      : 'ST';
+    const phonePart = form.phone ? form.phone.slice(-4) : '0000';
+    const symbols = ['@', '#', '$', '!'];
+    const sym = symbols[Math.floor(Math.random() * symbols.length)];
+    const rand = Math.floor(10 + Math.random() * 90);
+    const pwd = `${namePart}${phonePart}${sym}${rand}`;
+    setForm((p) => ({ ...p, password: pwd, confirmPassword: pwd }));
+    setShowPassword(true);
+  };
 
+  const validate = () => {
+    setValidationMessage('');
+    const nameRegex = /^[A-Za-z ]{3,}$/;
+    const phoneRegex = /^[6-9]\d{9}$/;
+    
+    if (!nameRegex.test(form.name)) { setValidationMessage('Invalid Name. Must contain at least 3 letters.'); return false; }
+    if (!phoneRegex.test(form.phone)) { setValidationMessage('Invalid Phone Number. Must be 10 digits starting with 6-9.'); return false; }
+    if (!form.dob) { setValidationMessage('Date of Birth is required.'); return false; }
+    if (!form.address) { setValidationMessage('Address is required.'); return false; }
+    
+    // For password, only validate if it's a new employee OR if they typed something while editing
+    if (!editingId || form.password) {
+      if (form.password.length < 6) { setValidationMessage('Password must be at least 6 characters.'); return false; }
+      if (form.password !== form.confirmPassword) { setValidationMessage('Passwords do not match.'); return false; }
+    }
+    
+    return true;
+  };
 
-          const updatestatus=async(id,s)=>{
-            await postData("/staff/api/update-attendance-status",{attendance_id:id,status:s});
-            fetchdata();
-          }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    
+    try {
+      // Create a clean payload, explicitly removing role and department
+      const { role, depart, department, ...cleanPayload } = form;
 
+      if (editingId) {
+        // ── Edit mode: NEVER send password fields ──
+        const { password, confirmPassword, ...updateData } = cleanPayload;
+        await postData('/trade/create-staff', { ...updateData });
+        showSuccessAlert('Success!', 'Staff details updated successfully.');
+      } else {
+        await postData('/trade/create-staff', { ...cleanPayload, pAccount: 'A17' });
+        showSuccessAlert('Success!', 'Staff member created successfully.');
+      }
+      resetForm();
+      fetchData();
+    } catch {
+      showErrorAlert('Error', 'Could not save. Please try again.');
+    }
+  };
 
+  // ── Password Update Handler ──
+  const openPwdModal = (emp) => {
+    setSearchTerm('');               // ← clear any browser-autofilled value
+    setPwdTarget({ _id: emp._id, empID: emp.empID, name: emp.name });
+    setPwdForm({ password: '', confirmPassword: '' });
+    setPwdError('');
+    setShowPwd(false);
+    setIsModalOpen(true);
+  };
+
+  const handlePwdUpdate = async (e) => {
+    e.preventDefault();
+    if (pwdForm.password.length < 6) {
+      setPwdError('Password must be at least 6 characters.');
+      return;
+    }
+    if (pwdForm.password !== pwdForm.confirmPassword) {
+      setPwdError('Passwords do not match.');
+      return;
+    }
+    setPwdError('');
+    try {
+      await postData('/trade/create-staff', { 
+        _id: pwdTarget._id, 
+        password: pwdForm.password,
+        confirmPassword: pwdForm.confirmPassword 
+      });
+      showSuccessAlert('Success!', 'Password updated successfully.');
+      closePwdModal();
+    } catch {
+      showErrorAlert('Error', 'Could not update password. Please try again.');
+    }
+  };
+
+  const closePwdModal = () => {
+    setPwdTarget({ _id: '', empID: '', name: '' });
+    setIsModalOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-6 lg:p-8 font-sans text-slate-900">
-      <div className="max-w-[1400px] mx-auto">
-        
-        {/* Header */}
+      <div className="max-w-[1100px] mx-auto">
+
+        {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
-              <Users className="text-indigo-600" size={32} />
-              Attandence
+              <UserCheck className="text-indigo-600" size={32} />
+              Staff List
             </h1>
-            <p className="text-slate-500 mt-1">Manage personnel records, contact details, and attendance.</p>
+            <p className="text-slate-500 mt-1 text-sm">
+              View, create and manage all staff members.
+            </p>
           </div>
-          <button 
-            onClick={(e) => handleOpenEditModal(e)}
-            className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-all shadow-md active:scale-95"
-          >
-            <Plus size={20} />
-            Add Employee
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-2.5">
+              <Users size={18} className="text-indigo-500" />
+              <span className="text-indigo-700 font-bold text-sm">{employees.length} Members</span>
+            </div>
+            <button
+              onClick={() => { resetForm(); setIsModalOpen(true); }}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-100 active:scale-95"
+            >
+              <Plus size={18} />
+              Add Employee
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-13 gap-8 items-start">
-          
-          {/* Employee Directory */}
-          <div className="lg:col-span-8 space-y-6">
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 items-center justify-between">
-              <div className="relative w-full sm:flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="text"
-                  placeholder="Search members..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 transition-all text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <select 
-                className="w-full sm:w-40 bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-medium"
-                value={deptFilter}
-                onChange={(e) => setDeptFilter(e.target.value)}
-              >
-                {DEPARTMENTS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-              </select>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
-                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Employee</th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Role</th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                    {/* <th className="px-6 py-4 text-right"></th> */}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {filteredEmployees.map((emp) => (
-                    <tr 
-                      key={emp._id} 
-                      onClick={() => handleViewEmployee(emp)}
-                      className="hover:bg-indigo-50/30 transition-all cursor-pointer group"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center font-bold text-xs">
-                            {emp?.name?.charAt(0)?.toUpperCase() || ""}
-                          </div>
-                          <div>
-                            <div className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">{emp.name}</div>
-                            <div className="text-xs text-slate-400 flex items-center gap-1"><Phone size={10} /> {emp.phone}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-slate-700 font-medium text-sm">{emp.role}</div>
-                        <div className="text-[11px] text-slate-400 font-medium">{emp.department}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <Badge status={emp.status}>{emp.status}</Badge>
-                      </td>
-                      {/* <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={(e) => handleOpenEditModal(e, emp)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg"><Edit3 size={16} /></button>
-                          <button onClick={(e) => deleteEmployee(e, emp._id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg"><Trash2 size={16} /></button>
-                        </div>
-                      </td> */}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        {/* Search */}
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              id="staff-search"
+              type="text"
+              name="staff-search"
+              autoComplete="off"
+              readOnly
+              onFocus={(e) => e.target.removeAttribute('readonly')}
+              onClick={(e) => e.target.removeAttribute('readonly')}
+              placeholder="Search by name, phone, email or department..."
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
+        </div>
 
-          {/* Right Sidebar */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2 font-bold text-slate-900"><Clock size={18} className="text-amber-500" />Requests</div>
-                <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{leaveRequests.length} Pending</span>
-              </div>
-              <div className="p-4 space-y-3">
-                {leaveRequests.map(req => (
-                  <div key={req._id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center font-bold text-[10px] text-slate-600">{req?.name?.charAt(0)?.toUpperCase() || ""}</div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-900">{req.name}</div>
-                        <div className="text-[9px] text-slate-500 font-bold uppercase">{req.phone}</div>
-                        <div className={req.status==='RL'?"text-[9px] text-red-500 font-bold uppercase":"text-[9px] text-amber-500 font-bold uppercase"}>{req.status==='RL'?'for leave':'for official duty'} - {moment(req.date).format("DD MMM YYYY")}</div>
+        {/* Table */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
+              <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+              <p className="text-slate-400 font-medium text-sm">Loading staff...</p>
+            </div>
+          ) : filteredEmployees.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
+              <Users size={48} className="opacity-30" />
+              <p className="font-semibold">No staff members found.</p>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-100">
+                  <th className="px-5 py-4 text-[11px] font-black text-slate-400 uppercase tracking-wider">#</th>
+                  <th className="px-5 py-4 text-[11px] font-black text-slate-400 uppercase tracking-wider hidden sm:table-cell">Emp ID</th>
+                  <th className="px-5 py-4 text-[11px] font-black text-slate-400 uppercase tracking-wider">Staff Member</th>
+                  <th className="px-5 py-4 text-[11px] font-black text-slate-400 uppercase tracking-wider hidden md:table-cell">Designation</th>
+                  <th className="px-5 py-4 text-[11px] font-black text-slate-400 uppercase tracking-wider hidden sm:table-cell">Contact</th>
+                  <th className="px-5 py-4 text-[11px] font-black text-slate-400 uppercase tracking-wider">Status</th>
+                  <th className="px-5 py-4 text-[11px] font-black text-slate-400 uppercase tracking-wider text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filteredEmployees.map((emp, idx) => (
+                  <tr key={emp._id || idx} className="hover:bg-indigo-50/20 transition-colors group">
+                    <td className="px-5 py-4 text-sm text-slate-400 font-bold">{idx + 1}</td>
+
+                    <td className="px-5 py-4 text-sm text-slate-500 font-medium hidden sm:table-cell">
+                      {emp.empID || '—'}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-indigo-100 flex-shrink-0">
+                          {emp?.name?.charAt(0)?.toUpperCase() || 'S'}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900 text-sm group-hover:text-indigo-700 transition-colors">{emp.name}</div>
+                          <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">
+                            <Phone size={9} />{emp.phone}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={()=>updatestatus(req._id,req.status==='RL'?'L':'O')} className="p-1.5 bg-white border border-slate-200 text-green-600 rounded-lg hover:bg-green-50"><CheckCircle2 size={14} /></button>
-                      <button onClick={()=>updatestatus(req._id,'X')} className="p-1.5 bg-white border border-slate-200 text-slate-400 rounded-lg hover:bg-red-50 hover:text-red-500"><XCircle size={14} /></button>
-                    </div>
-                  </div>
+                    </td>
+
+                    <td className="px-5 py-4 hidden md:table-cell">
+                      <div className="text-sm font-semibold text-slate-700">
+                        {
+                          (typeof emp.designation === 'object' && emp.designation !== null && emp.designation.name)
+                            ? emp.designation.name
+                            : (designations.find(d => d._id === (typeof emp.designation === 'object' ? emp.designation._id : emp.designation))?.name || emp.designation_name || '—')
+                        }
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4 hidden sm:table-cell">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                        <Mail size={11} className="text-indigo-400" />{emp.email || '—'}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium mt-1">
+                        <Home size={11} className="text-slate-300" />
+                        <span className="truncate max-w-[140px]">{emp.address || '—'}</span>
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <Badge status={emp.status}>{emp.status || 'Active'}</Badge>
+                    </td>
+
+                    <td className="px-5 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={(e) => handleEditOpen(e, emp)}
+                          className="inline-flex items-center gap-2 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white border border-indigo-200 hover:border-indigo-600 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-indigo-100 active:scale-95"
+                        >
+                          <Edit3 size={13} />
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openPwdModal(emp); }}
+                          className="inline-flex items-center gap-2 bg-amber-50 hover:bg-amber-500 text-amber-600 hover:text-white border border-amber-200 hover:border-amber-500 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-amber-100 active:scale-95"
+                          title="Change Password"
+                        >
+                          <KeyRound size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            </div>
-          </div>
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      {/* Employee Details & Calendar Modal */}
-      <Modal 
-        isOpen={!!viewingEmployee} 
-        onClose={() => setViewingEmployee(null)} 
-        title="Employee Profile"
-        maxWidth="max-w-3xl"
-      >
-        {viewingEmployee && (
-          <div className="p-8 pt-2 space-y-8">
-            {/* Profile Header */}
-            <div className="flex items-start gap-8">
-              <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-4xl font-black shadow-xl shadow-indigo-100">
-                {viewingEmployee?.name?.charAt(0)?.toUpperCase() || ""}
-              </div>
-              <div className="flex-1 pt-2">
-                <div className="flex items-center gap-3 mb-1">
-                  <h2 className="text-3xl font-black text-slate-900">{viewingEmployee.name}</h2>
-                  <Badge status={viewingEmployee.status}>{viewingEmployee.status}</Badge>
+      {/* ── Unified Create / Edit Employee Modal ── */}
+      {isModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={resetForm}></div>
+
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-indigo-100">
+                  {editingId ? <Edit3 size={20} /> : <Plus size={20} />}
                 </div>
-                <p className="text-slate-500 font-semibold flex items-center gap-1.5 mb-4">
-                  <UserCheck size={18} className="text-indigo-500" />
-                  {viewingEmployee.role} • {viewingEmployee.department}
-                </p>
-                
-                <div className="grid grid-cols-2 gap-4">
-                   <div className="flex items-center gap-3 text-xs font-bold text-slate-500 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100">
-                     <Mail size={14} className="text-indigo-400" /> {viewingEmployee.email}
-                   </div>
-                   <div className="flex items-center gap-3 text-xs font-bold text-slate-500 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100">
-                     <Phone size={14} className="text-indigo-400" /> {viewingEmployee.phone}
-                   </div>
-                   <div className="flex items-center gap-3 text-xs font-bold text-slate-500 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 col-span-2">
-                     <Home size={14} className="text-indigo-400" /> {viewingEmployee.address}
-                   </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">{editingId ? "Edit Staff Details" : "Create New Staff"}</h2>
+                  <p className="text-xs text-slate-400 font-medium">{editingId ? form.name : "Fill out the details below"}</p>
                 </div>
               </div>
+              <button onClick={resetForm} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
+                <X size={20} />
+              </button>
             </div>
 
-            {/* Attendance & Content Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <CalendarIcon size={16} className="text-indigo-600" />
-                  Monthly Attendance
-                </h3>
-                <CalendarWidget employee={viewingEmployee} at={AttandenceData}/>
-              </div>
-              
-              <div className="space-y-6">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <Clock size={16} className="text-indigo-600" />
-                  Key Statistics
-                </h3>
+            <div className="overflow-y-auto p-6 flex-1">
+              {validationMessage && (
+                <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm font-medium">
+                  {validationMessage}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Basic Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-slate-700 font-semibold text-xs mb-1.5 ml-1">Full Name</label>
+                    <input type="text" name="name" value={form.name} onChange={handleChange} required
+                      className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold text-xs mb-1.5 ml-1">Email Address</label>
+                    <input type="email" name="email" value={form.email} onChange={handleChange}
+                      className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold text-xs mb-1.5 ml-1">Phone Number</label>
+                    <input type="text" name="phone" value={form.phone} onChange={handleChange} required
+                      className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-700 font-semibold text-xs mb-1.5 ml-1">Date of Birth</label>
+                      <input type="date" name="dob" value={form.dob} onChange={handleChange} required
+                        className="w-full border border-slate-200 px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-semibold text-xs mb-1.5 ml-1">Age</label>
+                      <input type="text" name="age" value={form.age} disabled
+                        className="w-full border border-slate-200 px-3 py-2.5 rounded-xl bg-slate-50 text-slate-500 text-sm cursor-not-allowed" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold text-xs mb-1.5 ml-1">Address</label>
+                  <textarea name="address" value={form.address} onChange={handleChange} required rows={2}
+                    className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all resize-none" />
+                </div>
+
                 <div className="grid grid-cols-1 gap-4">
-                  <div className="p-5 bg-green-50 rounded-2xl border border-green-100 flex items-center justify-between">
-                    <div>
-                      <div className="text-green-700 font-black text-2xl leading-none mb-1">{AttandenceData.filter((item)=>(item.status==='P')).length} Days</div>
-                      <div className="text-[10px] font-bold text-green-600 uppercase tracking-wider opacity-60">Avg. Attendance</div>
-                    </div>
-                    <CheckCircle2 className="text-green-200" size={40} />
-                  </div>
-                  <div className="p-5 bg-amber-50 rounded-2xl border border-amber-100 flex items-center justify-between">
-                    <div>
-                      <div className="text-amber-700 font-black text-2xl leading-none mb-1">{AttandenceData.filter((item)=>(item.status==='L')).length} Days</div>
-                      <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider opacity-60">Leave Remaining</div>
-                    </div>
-                    <CalendarIcon className="text-amber-200" size={40} />
-                  </div>
-                  <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-between">
-                    <div>
-                      <div className="text-indigo-700 font-black text-2xl leading-none mb-1">{AttandenceData.filter((item)=>(item.status==='O')).length} Shifts</div>
-                      <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider opacity-60">Official Duties</div>
-                    </div>
-                    <MapPin className="text-indigo-200" size={40} />
+                  <div>
+                    <label className="block text-slate-700 font-semibold text-xs mb-1.5 ml-1">Designation</label>
+                    <select name="designation" value={form.designation} onChange={handleChange} required
+                      className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all bg-white">
+                      <option value="">-- Select Designation --</option>
+                      {designations.map((desig) => (
+                        <option key={desig._id} value={desig._id}>{desig.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
+
+                {/* Status (Only show when editing) */}
+                {editingId && (
+                  <div>
+                    <label className="block text-slate-700 font-semibold text-xs mb-1.5 ml-1">Status</label>
+                    <div className="flex gap-2">
+                      {['Active', 'On Leave', 'Inactive'].map((s) => (
+                        <button key={s} type="button"
+                          onClick={() => setForm((prev) => ({ ...prev, status: s }))}
+                          className={`flex-1 py-2.5 text-xs font-bold rounded-xl border transition-all ${
+                            form.status === s
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
+                              : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
+                          }`}>
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Dynamic Password (HIDDEN ON EDIT) ── */}
+                {!editingId && (
+                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-slate-700 font-bold text-sm">
+                        Account Password
+                      </label>
+                      <button type="button" onClick={generatePassword}
+                        className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-100 hover:bg-indigo-200 px-3 py-1.5 rounded-lg transition-all active:scale-95">
+                        <RefreshCw size={12} />
+                        Auto-Generate
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          name="password" value={form.password} onChange={handleChange} 
+                          required
+                          placeholder="Min. 6 characters"
+                          className="w-full border border-slate-200 px-4 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all" />
+                        <button type="button" onClick={() => setShowPassword((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                      </div>
+                      <div>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          name="confirmPassword" value={form.confirmPassword} onChange={handleChange} 
+                          required
+                          placeholder="Re-enter password"
+                          className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all" />
+                      </div>
+                    </div>
+
+                    {form.password && (
+                      <div className={`text-xs font-semibold px-3 py-2 rounded-lg ${
+                        form.password === form.confirmPassword && form.password.length >= 6
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {form.password === form.confirmPassword && form.password.length >= 6
+                          ? '✓ Passwords match'
+                          : form.password !== form.confirmPassword
+                          ? '✗ Passwords do not match'
+                          : '✗ Password too short (min 6 chars)'}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </form>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-slate-50 flex-shrink-0">
+              <button type="button" onClick={resetForm}
+                className="bg-white border border-slate-200 text-slate-700 px-6 py-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm font-bold shadow-sm">
+                Cancel
+              </button>
+              <button type="button" onClick={handleSubmit}
+                className="bg-indigo-600 text-white px-8 py-2.5 rounded-xl shadow-md shadow-indigo-100 hover:bg-indigo-700 transition-all text-sm font-bold active:scale-95">
+                {editingId ? "Update Employee" : "Save Employee"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Independent Password Update Modal ── */}
+      {isModalOpen && pwdTarget._id && (
+        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closePwdModal}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-amber-100">
+                  <KeyRound size={20} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">Change Password</h2>
+                  <p className="text-xs text-slate-400 font-medium">For {pwdTarget.name} ({pwdTarget.empID})</p>
+                </div>
               </div>
+              <button onClick={closePwdModal} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {pwdError && (
+                <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm font-medium">
+                  {pwdError}
+                </div>
+              )}
+              <form onSubmit={handlePwdUpdate} className="space-y-4">
+                <div className="relative">
+                  <label className="block text-slate-700 font-semibold text-xs mb-1.5 ml-1">New Password</label>
+                  <input
+                    type={showPwd ? 'text' : 'password'}
+                    value={pwdForm.password}
+                    onChange={(e) => setPwdForm(p => ({ ...p, password: e.target.value }))}
+                    required
+                    placeholder="Min. 6 characters"
+                    className="w-full border border-slate-200 px-4 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all" 
+                  />
+                  <button type="button" onClick={() => setShowPwd(v => !v)}
+                    className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600">
+                    {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold text-xs mb-1.5 ml-1">Confirm Password</label>
+                  <input
+                    type={showPwd ? 'text' : 'password'}
+                    value={pwdForm.confirmPassword}
+                    onChange={(e) => setPwdForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                    required
+                    placeholder="Re-enter password"
+                    className="w-full border border-slate-200 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 transition-all" 
+                  />
+                </div>
+                
+                <div className="pt-4 border-t border-gray-100 mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={closePwdModal}
+                    className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors">
+                    Cancel
+                  </button>
+                  <button type="submit"
+                    className="px-6 py-2.5 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all shadow-md shadow-amber-100 active:scale-95">
+                    Update Password
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
-        )}
-      </Modal>
-
-      {/* Add/Edit Modal */}
-      <Modal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        title={editingEmployee ? 'Edit Member Profile' : 'Register New Member'}
-        maxWidth="max-w-lg"
-      >
-        <form onSubmit={handleSubmit} className="space-y-4 p-2">
-          <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Personal Information</label>
-            <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all" placeholder="Full Name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <input required className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all" placeholder="Role / Position" value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})} />
-            <select className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-medium outline-none" value={formData.department} onChange={(e) => setFormData({...formData, department: e.target.value})}>
-              {DEPARTMENTS.filter(d => d !== 'All').map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Contact Details</label>
-            <div className="grid grid-cols-2 gap-3">
-              <input required type="email" className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all" placeholder="Email Address" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
-              <input required type="tel" className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all" placeholder="Mobile Number" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Residential Address</label>
-            <textarea required className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all resize-none h-20" placeholder="Street, City, State, ZIP Code" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Work Status</label>
-            <div className="flex gap-2">
-              {['Active', 'On Leave', 'Inactive'].map((s) => (
-                <button key={s} type="button" onClick={() => setFormData({...formData, status: s})} className={`flex-1 py-2 text-[11px] font-bold rounded-lg border transition-all ${formData.status === s ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'}`}>{s}</button>
-              ))}
-            </div>
-          </div>
-
-          <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all mt-4 transform active:scale-[0.98]">
-            {editingEmployee ? 'Update Profile' : 'Confirm Registration'}
-          </button>
-        </form>
-      </Modal>
+        </div>
+      )}
 
     </div>
   );

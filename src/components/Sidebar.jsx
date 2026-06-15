@@ -13,36 +13,40 @@ import {
   HiChartBar,
   HiCog,
   HiLogout,
+  HiX,
 } from 'react-icons/hi';
 import { MdAccountTree } from "react-icons/md";
 
-const Sidebar = () => {
+const Sidebar = ({ onClose }) => {
   const navigate = useNavigate();
 
   // Define nav items with icons and paths
-  const navItems = Cookies.get('logintype')==='ca'?[
-    { name: 'Dashboard', path: '/', icon: HiHome },
-    // { name: 'Appointments', path: '/appointments', icon: HiCalendar },
-    // { name: 'Hospitals', path: '/hospitals', icon: HiOfficeBuilding },
-    // { name: 'Doctors', path: '/doctors', icon: HiUserGroup },
-    // { name: 'Share Holders', path: '/staff', icon: HiUserGroup },
-    // { name: 'Payments', path: '/payments', icon: HiCreditCard },
-    // { name: 'Accounting', path: '/accounting', icon: MdAccountTree  },  
-    // { name: 'Reports', path: '/reports', icon: HiChartBar },
-    // { name: 'Trade', path: '/trade', icon: HiCreditCard },
-    // { name: 'Settings', path: '/settings', icon: HiCog },
-  ]:[
-    { name: 'Dashboard', path: '/', icon: HiHome },
-    // { name: 'Appointments', path: '/appointments', icon: HiCalendar },
-    // { name: 'Hospitals', path: '/hospitals', icon: HiOfficeBuilding },
-    // { name: 'Doctors', path: '/doctors', icon: HiUserGroup },
-    { name: 'Share Holders', path: '/staff', icon: HiUserGroup },
-    // { name: 'Payments', path: '/payments', icon: HiCreditCard },
-    { name: 'Accounting', path: '/accounting', icon: MdAccountTree  },  
-    { name: 'Reports', path: '/reports', icon: HiChartBar },
-    { name: 'Trade', path: '/trade', icon: HiCreditCard },
-    { name: 'Settings', path: '/settings', icon: HiCog },
-  ]
+    const baseNavItems = [
+      { name: 'Dashboard', path: '/', icon: HiHome },
+      { name: 'Share Holders', path: '/staff', icon: HiUserGroup },
+      { name: 'Accounting', path: '/accounting', icon: MdAccountTree  },  
+      { name: 'Reports', path: '/reports', icon: HiChartBar },
+      { name: 'Trade', path: '/trade', icon: HiCreditCard },
+      { name: 'Settings', path: '/settings', icon: HiCog },
+    ];
+
+    let permissions = null;
+    try {
+      const stored = localStorage.getItem('permissions');
+      if (stored) permissions = JSON.parse(stored);
+    } catch (e) {
+      permissions = null;
+    }
+
+    const logintype = Cookies.get('logintype');
+    const navItems = logintype === 'ca' 
+      ? [{ name: 'Dashboard', path: '/', icon: HiHome }] 
+      : baseNavItems.filter(item => {
+          if (item.name === 'Dashboard') return true;
+          // Fallback: If no permissions are set yet (existing session), or if admin/superadmin, give full access
+          if (!permissions || permissions.length === 0 || logintype === 'admin' || permissions.includes('ALL')) return true;
+          return permissions.includes(`Sidebar: ${item.name}`);
+        });
 
   const logout = () => {
     Cookies.remove('token');
@@ -54,13 +58,23 @@ const Sidebar = () => {
   return (
     <aside className="w-64 bg-white shadow-lg h-full flex flex-col border-r border-gray-200">
       {/* Logo Section */}
-      <div className="px-5 py-3 border-b border-gray-100">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           {/* <div className="text-2xl">DT</div> */}
           <h1 className="text-xl text-center font-bold bg-gradient-to-r from-purple-600 to-blue-500 bg-clip-text text-transparent">
             Duniya Enterprises
           </h1>
         </div>
+        {/* Close button - mobile only */}
+        {onClose && (
+          <button
+            className="md:hidden p-1 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            onClick={onClose}
+            aria-label="Close menu"
+          >
+            <HiX className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}

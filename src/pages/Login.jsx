@@ -1,4 +1,4 @@
-// src/pages/LoginPage.jsx
+// src/pages/Login.jsx
 import React, { useState } from 'react';
 import AuthLayout from '../components/AuthLayout';
 import useApi from '../api/useApi';
@@ -7,179 +7,139 @@ import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 
 const Login = () => {
-  const [step, setStep] = useState(1); // 1: login, 2: otp verification
-  const [email, setEmail] = useState('');
+  const [empId, setEmpId] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
-  const [phone, setPhone] = useState(''); // Will be fetched from API after login
   const [errors, setErrors] = useState({});
-  const { postData } = useApi();
-  const navigate=useNavigate()
+  const [loading, setLoading] = useState(false);
+  const { postData, getData } = useApi();
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
 
-
-    // Cookies.set('token', 'testtoken', { expires: 1 }); // 1 day
-    // navigate('/')
-
-
+    // — Validation —
     const validationErrors = {};
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!email || !emailRegex.test(email) ) {
-      validationErrors.email = 'Valid email is required';
+    if (!empId.trim()) {
+      validationErrors.empId = 'Employee ID is required';
     }
-   
-
+    if (!password) {
+      validationErrors.password = 'Password is required';
+    }
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
 
-    if (email==='superadmin@gmail.com') {
+    setErrors({});
+    setLoading(true);
 
-       if (password!=='123456') {
-      validationErrors.password = 'Password must be at least 6 characters';
-    }
-
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
-
-        Cookies.set('logintype', 'admin', { expires: 1 }); // 1 day
-        Cookies.set('token', 'testtoken', { expires: 1 });
-    navigate('/')
-    }
-
-    if (email==='ca@duniyape.in') {
-
-       if (password!=='ca@123') {
-      validationErrors.password = 'Password must be at least 6 characters';
-    }
-
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
-
-        Cookies.set('logintype', 'ca', { expires: 1 }); // 1 day
-        Cookies.set('token', 'testtoken', { expires: 1 });
-    navigate('/')
-    }
-
-    // try {
-    //   // Simulate API call to authenticate user
-    //   const res = await postData('/login', { email, password:btoa(password) });
-    //   // Assume API returns user data and phone
-    //   if (res.success && res.user) {
-    //     setPhone(res.user); // Save phone from response
-    //     setStep(2); // Move to OTP step
-    //     showSuccessAlert('OTP Sent!', `Check your phone: ${res.user}`);
-    //   } else {
-    //     showErrorAlert('Login Failed', 'Invalid credentials');
-    //   }
-    // } catch (err) {
-    //   showErrorAlert('Error', 'Something went wrong. Please try again.');
-    // }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-
-    if (!otp || otp.length !== 6) {
-      showErrorAlert('Invalid OTP', 'Please enter a valid 6-digit OTP');
-      return;
-    }
     try {
-      const res = await postData('/verify-otp', { phone, otp });
-        showSuccessAlert('Login Successful!', 'Redirecting to dashboard...');
-        Cookies.set('token', res.token, { expires: 1 }); // 1 day
-        console.log(res)
-        setTimeout(() => {
-          navigate('/'); // Redirect
-        }, 1500);
+      const res = await postData('/trade/login', {
+        empId: empId.trim(),
+        password,
+      });
+
+      // API returns: { success: true, user: { role, empID, name, designation, ... } }
+      if (res && res.success === true && res.user) {
+        const user = res.user;
+        // Role from user object (normalize to lowercase)
+        const role = (user.role || user.logintype || 'staff').toLowerCase();
+        
+        // Fetch permissions for this user's designation
+        let permissions = [];
+        try {
+          const designationsList = await getData('/trade/designations');
+          const userDesig = designationsList.find(d => d._id === user.designation);
+          if (userDesig && userDesig.permissions) {
+            permissions = userDesig.permissions;
+          } else if (role === 'admin' || role === 'ca') {
+            permissions = ['ALL']; // Superadmin fallback
+          }
+        } catch (e) {
+          console.error("Failed to fetch permissions during login:", e);
+        }
+
+        // Use empID as the session identifier (no JWT token returned by API)
+        Cookies.set('token', user.empID || user._id || 'session', { expires: 1 });
+        Cookies.set('logintype', role, { expires: 1 });
+        // Store name for display in topbar etc.
+        Cookies.set('userName', user.name || user.empID || '', { expires: 1 });
+        localStorage.setItem('permissions', JSON.stringify(permissions));
+
+        showSuccessAlert('Login Successful!', `Welcome ${user.name?.trim() || user.empID}! Role: ${role}`);
+        navigate('/');
+      } else {
+        showErrorAlert('Login Failed', res?.message || 'Invalid credentials. Please try again.');
+      }
     } catch (err) {
-      showErrorAlert('Error', 'Verification failed. Please try again.');
+      showErrorAlert(
+        'Login Failed',
+        err?.message || err?.error || 'Something went wrong. Please try again.'
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <AuthLayout title={step === 1 ? 'Login' : 'Verify OTP'}>
-      {step === 1 ? (
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              placeholder="xyz@gmail.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                errors.email ? 'border-red-500' : 'border-gray-300'
-              }`}
-            />
-            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
-          </div>
+    <AuthLayout title="Staff Login">
+      <form onSubmit={handleLogin} className="space-y-5">
+        {/* Employee ID */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Employee ID
+          </label>
+          <input
+            type="text"
+            placeholder="Enter your Employee ID"
+            value={empId}
+            autoComplete="username"
+            onChange={(e) => setEmpId(e.target.value)}
+            className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition ${
+              errors.empId ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            }`}
+          />
+          {errors.empId && (
+            <p className="text-red-500 text-xs mt-1">{errors.empId}</p>
+          )}
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                errors.password ? 'border-red-500' : 'border-gray-300'
-              }`}
-            />
-            {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
-          </div>
+        {/* Password */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Password
+          </label>
+          <input
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            autoComplete="current-password"
+            onChange={(e) => setPassword(e.target.value)}
+            className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition ${
+              errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300'
+            }`}
+          />
+          {errors.password && (
+            <p className="text-red-500 text-xs mt-1">{errors.password}</p>
+          )}
+        </div>
 
-          <button
-            type="submit"
-            className="w-full py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
-          >
-            Login
-          </button>
-
-          <div className="text-center text-sm">
-            <p>
-              Don't have an account?{' '}
-              <a href="/register" className="text-purple-600 hover:underline">
-                Register
-              </a>
-            </p>
-          </div>
-        </form>
-      ) : (
-        <form onSubmit={handleVerifyOtp} className="space-y-4">
-          <div className="text-center mb-4">
-            <p className="text-gray-600">
-              OTP has been sent to <strong>{phone}</strong>
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Enter OTP</label>
-            <input
-              type="text"
-              placeholder="123456"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
-          >
-            Verify OTP
-          </button>
-        </form>
-      )}
+        {/* Submit */}
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:bg-purple-400 flex items-center justify-center gap-2 font-semibold text-sm"
+        >
+          {loading ? (
+            <>
+              <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+              Logging in...
+            </>
+          ) : (
+            'Login'
+          )}
+        </button>
+      </form>
     </AuthLayout>
   );
 };

@@ -56,3 +56,8 @@ export const trade_tabs = [
     { label: 'INVENTORY', route: 'inventory' },
 
   ];
+
+export const loan_tabs = [
+    { label: 'CREATE MEMBER', route: '' },
+    { label: 'MEMBER LIST', route: 'member_list' },
+  ];

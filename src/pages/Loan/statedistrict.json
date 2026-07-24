@@ -1,0 +1,101 @@
+[
+  {
+    "state": "Madhya Pradesh",
+    "districts": [
+      "Bhopal",
+      "Indore",
+      "Gwalior",
+      "Jabalpur",
+      "Ujjain",
+      "Sagar",
+      "Rewa",
+      "Satna",
+      "Ratlam",
+      "Chhindwara",
+      "Vidisha",
+      "Dewas",
+      "Dhar",
+      "Sehore",
+      "Raisen"
+    ]
+  },
+  {
+    "state": "Maharashtra",
+    "districts": [
+      "Mumbai",
+      "Pune",
+      "Nagpur",
+      "Thane",
+      "Nashik",
+      "Aurangabad",
+      "Solapur",
+      "Amravati",
+      "Kolhapur"
+    ]
+  },
+  {
+    "state": "Uttar Pradesh",
+    "districts": [
+      "Lucknow",
+      "Kanpur",
+      "Varanasi",
+      "Agra",
+      "Prayagraj",
+      "Noida",
+      "Ghaziabad",
+      "Gorakhpur",
+      "Bareilly"
+    ]
+  },
+  {
+    "state": "Delhi",
+    "districts": [
+      "Central Delhi",
+      "East Delhi",
+      "New Delhi",
+      "North Delhi",
+      "North East Delhi",
+      "North West Delhi",
+      "South Delhi",
+      "South West Delhi",
+      "West Delhi"
+    ]
+  },
+  {
+    "state": "Rajasthan",
+    "districts": [
+      "Jaipur",
+      "Jodhpur",
+      "Udaipur",
+      "Kota",
+      "Bikaner",
+      "Ajmer",
+      "Bhilwara",
+      "Alwar"
+    ]
+  },
+  {
+    "state": "Gujarat",
+    "districts": [
+      "Ahmedabad",
+      "Surat",
+      "Vadodara",
+      "Rajkot",
+      "Bhavnagar",
+      "Jamnagar",
+      "Gandhinagar"
+    ]
+  },
+  {
+    "state": "Bihar",
+    "districts": [
+      "Patna",
+      "Gaya",
+      "Bhagalpur",
+      "Muzaffarpur",
+      "Purnia",
+      "Darbhanga",
+      "Bihar Sharif"
+    ]
+  }
+]

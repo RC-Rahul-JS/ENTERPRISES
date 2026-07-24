@@ -6,7 +6,9 @@ import Layout from './Layout/Layout';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import Tabs_layout from './Layout/Tabs_layout';
-import {ledger_tabs, payments_tabs, report_tabs, setting_tabs, staff_tabs, trade_tabs } from './utils/tabs';
+import {ledger_tabs, loan_tabs, payments_tabs, report_tabs, setting_tabs, staff_tabs, trade_tabs } from './utils/tabs';
+import CreateMember from './pages/Loan/CreateMember';
+import MemberList from './pages/Loan/MemberList';
 import Payments from './pages/Payments/Payments';
 import Reports from './pages/Reports/Reports';
 import Designation from './pages/Designation/Designation';
@@ -113,6 +115,12 @@ function App() {
                 <Route path="expenselist" element={<Expense_List/>} />
                 <Route path="categories" element={<CategoryModule/>} />
                 <Route path="inventory" element={<Inventory/>} />
+            </Route>
+
+            <Route path="/loan/" element={<Tabs_layout tabs={loan_tabs} />} >
+                <Route path="" element={<CreateMember/>} />
+                <Route path="create_member" element={<CreateMember/>} />
+                <Route path="member_list" element={<MemberList/>} />
             </Route>
 
           <Route path="/register" element={<Register />} />

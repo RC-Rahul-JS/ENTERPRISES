@@ -14,6 +14,7 @@ import {
   HiCog,
   HiLogout,
   HiX,
+  HiCash,
 } from 'react-icons/hi';
 import { MdAccountTree } from "react-icons/md";
 
@@ -24,6 +25,7 @@ const Sidebar = ({ onClose }) => {
     const baseNavItems = [
       { name: 'Dashboard', path: '/', icon: HiHome },
       { name: 'Share Holders', path: '/staff', icon: HiUserGroup },
+      { name: 'Loan', path: '/loan', icon: HiCash },
       { name: 'Accounting', path: '/accounting', icon: MdAccountTree  },  
       { name: 'Reports', path: '/reports', icon: HiChartBar },
       { name: 'Trade', path: '/trade', icon: HiCreditCard },

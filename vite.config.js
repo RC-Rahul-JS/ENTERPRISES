@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react(),tailwindcss()],
   server: {
     allowedHosts: [
-      "hyphen-chemo-exponent.ngrok-free.dev", // 👈 Add your ngrok host here
+      "http://192.168.29.145:5000", // 👈 Add your ngrok host here
     ],
   },
 })

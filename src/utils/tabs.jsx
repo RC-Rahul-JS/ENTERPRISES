@@ -65,4 +65,6 @@ export const loan_tabs = [
     { label: 'BRANCH LIST', route: 'branch_list' },
     { label: 'LOAN PRODUCTS', route: 'loan_products' },
     { label: 'INTEREST SLAB', route: 'interest_slabs' },
+    { label: 'LOAN CALCULATOR', route: 'loan_calculator' },
+    { label: 'APPLY LOAN', route: 'apply_loan' },
   ];

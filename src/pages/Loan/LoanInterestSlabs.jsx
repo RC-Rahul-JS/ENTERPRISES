@@ -10,7 +10,6 @@ import {
   Search,
   CheckCircle,
   XCircle,
-  Filter,
 } from 'lucide-react';
 
 const toast = {
@@ -33,190 +32,163 @@ const toast = {
       toast: true,
       position: 'top-end',
       showConfirmButton: false,
-      timer: 3000,
+      timer: 4000,
       timerProgressBar: true,
     }),
-  dismiss: () => Swal.close(),
 };
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+/** Utility: clean an object by converting all values to strings (safe for JSON). */
+const cleanObj = (obj) => {
+  const out = {};
+  Object.entries(obj).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) out[k] = String(v);
+  });
+  return out;
+};
+
+/** Extract first non-empty value from an item for a list of keys. */
+const pick = (item, keys, fallback = '') =>
+  keys.reduce((acc, k) => (acc !== '' ? acc : item?.[k] ?? ''), '') || fallback;
+
+/** Find MongoDB-like id from a product object. */
+const pickId = (item) =>
+  pick(item, ['_id', 'loan_id', 'loanId', 'product_id', 'productId', 'id']);
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
 const LoanInterestSlabs = () => {
-  const localprimeBase =
+  const BASE =
     import.meta.env.VITE_LOCALPRIME_URL ||
     'http://192.168.29.145:5000/badri_enterprises/localprime';
 
-  // Available Loan Products from API
-  const [allLoanProducts, setAllLoanProducts] = useState([]);
+  // ── State ──────────────────────────────────────────────────────────────────
+
+  const [allProducts, setAllProducts] = useState([]);
+  const [slabs, setSlabs] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingSlabs, setLoadingSlabs] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [selectedSlab, setSelectedSlab] = useState(null);
+  const [editingSlab, setEditingSlab] = useState(null);
 
-  // Form State
-  const [loanType, setLoanType] = useState('Loan'); // Group, Loan, Limit
-  const [interestType, setInterestType] = useState('Flat'); // Flat, Reducing
-  const [reducing, setReducing] = useState('Daily'); // Daily, Monthly, Weekly, Yearly
-  const [selectedLoanId, setSelectedLoanId] = useState('');
-  const [selectedLoanName, setSelectedLoanName] = useState('--Select--');
-  const [durationIn, setDurationIn] = useState('Days'); // Days, Months, Years
-
-  // Sub-Section Fields
+  // Create form
+  const [loanType, setLoanType] = useState('Loan');
+  const [interestType, setInterestType] = useState('Flat');
+  const [reducing, setReducing] = useState('Daily');
+  const [selLoanId, setSelLoanId] = useState('');
+  const [selLoanName, setSelLoanName] = useState('');
+  const [durationIn, setDurationIn] = useState('Days');
   const [fromVal, setFromVal] = useState('0');
   const [toVal, setToVal] = useState('');
-  const [rateOfInterest, setRateOfInterest] = useState('');
-  const [chqBounceCharge, setChqBounceCharge] = useState('');
-  const [minimumAmount, setMinimumAmount] = useState('');
-  const [minimumPeriod, setMinimumPeriod] = useState('');
-  const [processingFee, setProcessingFee] = useState('');
-  const [gstPercentage, setGstPercentage] = useState('18');
-  const [feeType, setFeeType] = useState('Percent (%)'); // Percent (%), Flat
-  const [otherPenalty, setOtherPenalty] = useState('');
+  const [roi, setRoi] = useState('');
+  const [chqBounce, setChqBounce] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [minPeriod, setMinPeriod] = useState('');
+  const [procFee, setProcFee] = useState('');
+  const [gst, setGst] = useState('18');
+  const [feeType, setFeeType] = useState('Percent (%)');
+  const [penalty, setPenalty] = useState('');
   const [grace, setGrace] = useState('');
   const [lpc, setLpc] = useState('');
   const [status, setStatus] = useState('Active');
 
-  const [submitting, setSubmitting] = useState(false);
-
-  // Directory Data State
-  const [slabs, setSlabs] = useState([]);
-  const [loadingSlabs, setLoadingSlabs] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-
-  // Modals
-  const [selectedSlab, setSelectedSlab] = useState(null); // View Modal
-  const [editingSlab, setEditingSlab] = useState(null); // Edit Modal
-  const [updating, setUpdating] = useState(false);
-
-  // Edit Form State
+  // Edit form
   const [editLoanType, setEditLoanType] = useState('Loan');
   const [editInterestType, setEditInterestType] = useState('Flat');
   const [editReducing, setEditReducing] = useState('Daily');
-  const [editSelectedLoanId, setEditSelectedLoanId] = useState('');
-  const [editSelectedLoanName, setEditSelectedLoanName] = useState('--Select--');
+  const [editSelLoanId, setEditSelLoanId] = useState('');
+  const [editSelLoanName, setEditSelLoanName] = useState('');
   const [editDurationIn, setEditDurationIn] = useState('Days');
   const [editFromVal, setEditFromVal] = useState('0');
   const [editToVal, setEditToVal] = useState('');
-  const [editRateOfInterest, setEditRateOfInterest] = useState('');
-  const [editChqBounceCharge, setEditChqBounceCharge] = useState('');
-  const [editMinimumAmount, setEditMinimumAmount] = useState('');
-  const [editMinimumPeriod, setEditMinimumPeriod] = useState('');
-  const [editProcessingFee, setEditProcessingFee] = useState('');
-  const [editGstPercentage, setEditGstPercentage] = useState('18');
+  const [editRoi, setEditRoi] = useState('');
+  const [editChqBounce, setEditChqBounce] = useState('');
+  const [editMinAmount, setEditMinAmount] = useState('');
+  const [editMinPeriod, setEditMinPeriod] = useState('');
+  const [editProcFee, setEditProcFee] = useState('');
+  const [editGst, setEditGst] = useState('18');
   const [editFeeType, setEditFeeType] = useState('Percent (%)');
-  const [editOtherPenalty, setEditOtherPenalty] = useState('');
+  const [editPenalty, setEditPenalty] = useState('');
   const [editGrace, setEditGrace] = useState('');
   const [editLpc, setEditLpc] = useState('');
   const [editStatus, setEditStatus] = useState('Active');
 
-  // Fetch Loan Products for Dropdown
-  const fetchLoanProducts = async () => {
+  // ── Data Fetching ──────────────────────────────────────────────────────────
+
+  const fetchProducts = async () => {
     setLoadingProducts(true);
     try {
-      const res = await axios.get(`${localprimeBase}/loan-products`);
+      const res = await axios.get(`${BASE}/loan-products`);
       let list = [];
       if (Array.isArray(res.data)) list = res.data;
       else if (Array.isArray(res.data?.data)) list = res.data.data;
-      else if (Array.isArray(res.data?.products)) list = res.data.products;
       else if (res.data && typeof res.data === 'object') {
         const arr = Object.values(res.data).find((v) => Array.isArray(v));
         if (arr) list = arr;
       }
-
-      const normalized = list.map((item) => {
-        const mongoId =
-          item._id ||
-          item.loan_id ||
-          item.loanId ||
-          item.product_id ||
-          item.productId ||
-          item.id ||
-          '';
-        const name =
-          item.productName ||
-          item.product_name ||
-          item.loanName ||
-          item.loan_name ||
-          item.name ||
-          item.title ||
-          'Unnamed Product';
-        const type =
-          item.productType || item.product_type || item.type || 'Loan';
-        return {
-          raw: item,
-          id: mongoId,
-          _id: mongoId,
-          loan_id: mongoId,
-          name,
-          type,
-          status: item.status || 'Active',
-        };
-      });
-
-      setAllLoanProducts(normalized);
+      setAllProducts(
+        list.map((item) => ({
+          id: pickId(item),
+          name: pick(item, ['productName', 'product_name', 'loanName', 'loan_name', 'name', 'title'], 'Unnamed'),
+          type: pick(item, ['productType', 'product_type', 'type'], 'Loan'),
+        }))
+      );
     } catch (err) {
-      console.error('Error fetching loan products for slab dropdown:', err);
+      console.error('[fetchProducts] error:', err);
     } finally {
       setLoadingProducts(false);
     }
   };
 
-  // Fetch Interest Slabs / Parameters List
-  const fetchInterestSlabs = async () => {
+  const fetchSlabs = async () => {
     setLoadingSlabs(true);
     try {
-      const res = await axios.get(`${localprimeBase}/loan-parameters`);
-      console.log('=== [LOAN PARAMETERS] FETCH RESPONSE ===', res.data);
-
-      let rawList = [];
-      if (Array.isArray(res.data)) rawList = res.data;
-      else if (Array.isArray(res.data?.data)) rawList = res.data.data;
-      else if (Array.isArray(res.data?.parameters)) rawList = res.data.parameters;
-      else if (Array.isArray(res.data?.slabs)) rawList = res.data.slabs;
+      const res = await axios.get(`${BASE}/loan-parameters`);
+      let raw = [];
+      if (Array.isArray(res.data)) raw = res.data;
+      else if (Array.isArray(res.data?.data)) raw = res.data.data;
       else if (res.data && typeof res.data === 'object') {
         const arr = Object.values(res.data).find((v) => Array.isArray(v));
-        if (arr) rawList = arr;
-        else rawList = [res.data];
+        raw = arr || (Object.keys(res.data).length ? [res.data] : []);
       }
-
-      const normalized = rawList.map((item, idx) => {
-        const id =
-          item._id ||
-          item.parameter_id ||
-          item.parameterId ||
-          item.slab_id ||
-          item.slabId ||
-          item.id ||
-          `PARAM-${100 + idx}`;
-        return {
-          raw: item,
-          id,
-          parameter_id: id,
-          loanType: item.loanType || item.loan_type || 'Loan',
-          interestType: item.interestType || item.interest_type || 'Flat',
-          reducing: item.reducing || 'Daily',
-          selectedLoan:
-            item.selectedLoan || item.selected_loan || item.loanName || 'N/A',
-          durationIn: item.durationIn || item.duration_in || 'Days',
-          fromVal: item.fromVal || item.from_val || item.from || '0',
-          toVal: item.toVal || item.to_val || item.to || 'N/A',
-          rateOfInterest:
-            item.rateOfInterest || item.rate_of_interest || item.roi || '0',
-          chqBounceCharge:
-            item.chqBounceCharge || item.chq_bounce_charge || '0',
-          minimumAmount: item.minimumAmount || item.minimum_amount || '0',
-          minimumPeriod: item.minimumPeriod || item.minimum_period || '0',
-          processingFee: item.processingFee || item.processing_fee || '0',
-          gstPercentage: item.gstPercentage || item.gst_percentage || '18',
-          feeType: item.feeType || item.fee_type || 'Percent (%)',
-          otherPenalty: item.otherPenalty || item.other_penalty || '0',
-          grace: item.grace || '0',
-          lpc: item.lpc || '0',
-          status: item.status || item.Status || 'Active',
-          createdAt: item.created_at
-            ? new Date(item.created_at).toLocaleDateString()
-            : item.createdAt || 'N/A',
-        };
-      });
-
-      setSlabs(normalized);
+      setSlabs(
+        raw.map((item, idx) => {
+          const id = pick(item, ['_id', 'parameter_id', 'parameterId', 'slab_id', 'id'], `P-${idx}`);
+          return {
+            id,
+            parameter_id: id,
+            loan_id: pick(item, ['loan_id', 'loanId', 'Loan_id']),
+            loanType: pick(item, ['loanType', 'loan_type'], 'Loan'),
+            interestType: pick(item, ['interestType', 'interest_type'], 'Flat'),
+            reducing: item.reducing || 'Daily',
+            selectedLoan: pick(item, ['selectedLoan', 'selected_loan', 'loanName', 'loan_name'], 'N/A'),
+            durationIn: pick(item, ['durationIn', 'duration_in'], 'Days'),
+            fromVal: pick(item, ['fromVal', 'from_val', 'from'], '0'),
+            toVal: pick(item, ['toVal', 'to_val', 'to'], 'N/A'),
+            rateOfInterest: pick(item, ['rateOfInterest', 'rate_of_interest', 'roi'], '0'),
+            chqBounceCharge: pick(item, ['chqBounceCharge', 'chq_bounce_charge'], '0'),
+            minimumAmount: pick(item, ['minimumAmount', 'minimum_amount'], '0'),
+            minimumPeriod: pick(item, ['minimumPeriod', 'minimum_period'], '0'),
+            processingFee: pick(item, ['processingFee', 'processing_fee'], '0'),
+            gstPercentage: pick(item, ['gstPercentage', 'gst_percentage'], '18'),
+            feeType: pick(item, ['feeType', 'fee_type'], 'Percent (%)'),
+            otherPenalty: pick(item, ['otherPenalty', 'other_penalty'], '0'),
+            grace: item.grace || '0',
+            lpc: item.lpc || '0',
+            status: item.status || item.Status || 'Active',
+            createdAt: item.created_at
+              ? new Date(item.created_at).toLocaleDateString()
+              : item.createdAt || 'N/A',
+            raw: item,
+          };
+        })
+      );
     } catch (err) {
-      console.error('Error fetching interest slabs/parameters:', err);
+      console.error('[fetchSlabs] error:', err);
       setSlabs([]);
     } finally {
       setLoadingSlabs(false);
@@ -224,362 +196,252 @@ const LoanInterestSlabs = () => {
   };
 
   useEffect(() => {
-    fetchLoanProducts();
-    fetchInterestSlabs();
+    fetchProducts();
+    fetchSlabs();
   }, []);
 
-  // Filter products by selected Loan Type for Creation Form
-  const filteredLoanProductsForForm = allLoanProducts.filter(
-    (p) => String(p.type).toLowerCase() === String(loanType).toLowerCase()
+  // ── Filtered product lists ─────────────────────────────────────────────────
+
+  const productsForCreate = allProducts.filter(
+    (p) => p.type.toLowerCase() === loanType.toLowerCase()
+  );
+  const productsForEdit = allProducts.filter(
+    (p) => p.type.toLowerCase() === editLoanType.toLowerCase()
   );
 
-  // Filter products by selected Loan Type for Edit Form
-  const filteredLoanProductsForEdit = allLoanProducts.filter(
-    (p) => String(p.type).toLowerCase() === String(editLoanType).toLowerCase()
-  );
+  // ── Resolve loan id from product list ──────────────────────────────────────
 
-  // Handle Create Interest Slab
+  const resolveLoanId = (id, name, products) => {
+    if (id) return id;
+    const match = products.find(
+      (p) => p.name.toLowerCase() === (name || '').toLowerCase()
+    );
+    return match ? match.id : '';
+  };
+
+  const resolveLoanName = (id, name, products) => {
+    if (name && name !== '--Select--') return name;
+    const match = products.find((p) => p.id === id);
+    return match ? match.name : name || '';
+  };
+
+  // ── Submit helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * Submit as application/json — Flask backend uses request.get_json().
+   * CORS 500 errors were caused by empty numeric fields crashing Flask;
+   * all numeric fields now default to '0' so Flask won't crash.
+   */
+  const submitJson = async (url, data) => {
+    console.log('[SUBMIT] URL:', url, 'Payload:', data);
+    const res = await axios.post(url, data, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return res.data;
+  };
+
+  // ── Reset create form ──────────────────────────────────────────────────────
+
+  const resetCreateForm = () => {
+    setSelLoanId('');
+    setSelLoanName('');
+    setToVal('');
+    setRoi('');
+    setChqBounce('');
+    setMinAmount('');
+    setMinPeriod('');
+    setProcFee('');
+    setPenalty('');
+    setGrace('');
+    setLpc('');
+  };
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
   const handleCreate = async (e) => {
     e.preventDefault();
 
-    if (!selectedLoanId && (!selectedLoanName || selectedLoanName === '--Select--')) {
-      toast.error('Please select a Loan product');
+    const loanId = resolveLoanId(selLoanId, selLoanName, allProducts);
+    if (!loanId) {
+      toast.error('Please select a valid Loan product');
       return;
     }
-    if (!rateOfInterest) {
-      toast.error('Please enter Rate of Interest (%age)');
+    if (!roi) {
+      toast.error('Please enter Rate of Interest');
       return;
     }
 
     setSubmitting(true);
+    const loanName = resolveLoanName(loanId, selLoanName, allProducts);
 
-    let actualLoanId = selectedLoanId;
-    let actualLoanName = selectedLoanName;
-
-    if (!actualLoanId || actualLoanId === '--Select--') {
-      const match = allLoanProducts.find(
-        (p) => String(p.name).toLowerCase() === String(selectedLoanName).toLowerCase()
-      );
-      if (match) {
-        actualLoanId = match.id || match._id || match.loan_id;
-      }
-    }
-
-    if (!actualLoanName || actualLoanName === '--Select--') {
-      const match = allLoanProducts.find(
-        (p) => String(p.id) === String(selectedLoanId)
-      );
-      if (match) {
-        actualLoanName = match.name;
-      }
-    }
-
-    if (!actualLoanId || actualLoanId === '--Select--') {
-      toast.error('Please select a valid Loan product');
-      setSubmitting(false);
-      return;
-    }
-
-    const payload = {
-      loan_id: actualLoanId,
-      Loan_id: actualLoanId,
-      loan_Id: actualLoanId,
-      loanId: actualLoanId,
-      product_id: actualLoanId,
-      productId: actualLoanId,
-      _id: actualLoanId,
+    const data = {
+      loan_id: loanId,
+      Loan_id: loanId,
+      loanId: loanId,
+      product_id: loanId,
       loanType,
       loan_type: loanType,
       interestType,
       interest_type: interestType,
       reducing,
-      selectedLoan: actualLoanName,
-      selected_loan: actualLoanName,
-      loanName: actualLoanName,
-      loan_name: actualLoanName,
-      productName: actualLoanName,
-      product_name: actualLoanName,
+      selectedLoan: loanName,
+      loanName,
+      loan_name: loanName,
       durationIn,
       duration_in: durationIn,
-      fromVal,
-      from_val: fromVal,
-      from: fromVal,
-      toVal,
-      to_val: toVal,
-      to: toVal,
-      rateOfInterest,
-      rate_of_interest: rateOfInterest,
-      roi: rateOfInterest,
-      chqBounceCharge,
-      chq_bounce_charge: chqBounceCharge,
-      minimumAmount,
-      minimum_amount: minimumAmount,
-      minimumPeriod,
-      minimum_period: minimumPeriod,
-      processingFee,
-      processing_fee: processingFee,
-      gstPercentage,
-      gst_percentage: gstPercentage,
+      from: fromVal || '0',
+      fromVal: fromVal || '0',
+      to: toVal || '0',
+      toVal: toVal || '0',
+      rateOfInterest: roi,
+      rate_of_interest: roi,
+      roi,
+      chqBounceCharge: chqBounce || '0',
+      chq_bounce_charge: chqBounce || '0',
+      minimumAmount: minAmount || '0',
+      minimum_amount: minAmount || '0',
+      minimumPeriod: minPeriod || '0',
+      minimum_period: minPeriod || '0',
+      processingFee: procFee || '0',
+      processing_fee: procFee || '0',
+      gstPercentage: gst || '18',
+      gst_percentage: gst || '18',
       feeType,
       fee_type: feeType,
-      otherPenalty,
-      other_penalty: otherPenalty,
-      grace,
-      lpc,
+      otherPenalty: penalty || '0',
+      other_penalty: penalty || '0',
+      grace: grace || '0',
+      lpc: lpc || '0',
       status,
       Status: status,
     };
 
-    console.log('=== [CREATE LOAN PARAMETER] PAYLOAD ===', payload);
+    console.log('[CREATE] payload:', data);
 
     try {
-      const res = await axios.post(`${localprimeBase}/loan-parameters`, payload, {
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      console.log('=== [CREATE LOAN PARAMETER] JSON SUCCESS ===', res.data);
-      toast.success(res.data?.message || 'Loan Parameter created successfully!');
-      
-      // Reset Form
-      setSelectedLoanId('');
-      setSelectedLoanName('--Select--');
-      setToVal('');
-      setRateOfInterest('');
-      setChqBounceCharge('');
-      setMinimumAmount('');
-      setMinimumPeriod('');
-      setProcessingFee('');
-      setOtherPenalty('');
-      setGrace('');
-      setLpc('');
-
-      fetchInterestSlabs();
+      const result = await submitJson(`${BASE}/loan-parameters`, data);
+      console.log('[CREATE] success:', result);
+      toast.success(result?.message || 'Loan Parameter created successfully!');
+      resetCreateForm();
+      fetchSlabs();
     } catch (err) {
-      console.error('=== [JSON SUBMIT FAILED] ERROR ===', err);
-      const serverMsg = err?.response?.data?.message || err?.response?.data?.error;
-      console.error('=== [JSON SUBMIT FAILED] SERVER RESPONSE DATA ===', err?.response?.data);
-
-      if (serverMsg) {
-        toast.error(serverMsg);
-        setSubmitting(false);
-        return;
-      }
-
-      try {
-        const fd = new FormData();
-        Object.keys(payload).forEach((key) => {
-          if (payload[key] !== undefined && payload[key] !== null) {
-            fd.append(key, String(payload[key]));
-          }
-        });
-
-        const res2 = await axios.post(`${localprimeBase}/loan-parameters`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-
-        console.log('=== [CREATE LOAN PARAMETER] FORMDATA SUCCESS ===', res2.data);
-        toast.success(res2.data?.message || 'Loan Parameter created successfully!');
-        
-        // Reset Form
-        setSelectedLoanId('');
-        setSelectedLoanName('--Select--');
-        setToVal('');
-        setRateOfInterest('');
-        setChqBounceCharge('');
-        setMinimumAmount('');
-        setMinimumPeriod('');
-        setProcessingFee('');
-        setOtherPenalty('');
-        setGrace('');
-        setLpc('');
-
-        fetchInterestSlabs();
-      } catch (err2) {
-        console.error('=== [FORMDATA SUBMIT FAILED] ERROR ===', err2);
-        console.error('=== [FORMDATA SUBMIT FAILED] SERVER RESPONSE DATA ===', err2?.response?.data);
-
-        toast.error(
-          err2?.response?.data?.message ||
-            err2?.response?.data?.error ||
-            'Failed to create Loan Parameter.'
-        );
-      }
+      console.error('[CREATE] error:', err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Failed to create Loan Parameter.';
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Open Edit Modal
   const handleOpenEdit = (item) => {
     setEditingSlab(item);
-    setEditLoanType(item.loanType);
-    setEditInterestType(item.interestType);
-    setEditReducing(item.reducing);
-    setEditSelectedLoanId(item.loan_id || item.raw?.loan_id || item.raw?.Loan_id || item.id);
-    setEditSelectedLoanName(item.selectedLoan);
-    setEditDurationIn(item.durationIn);
-    setEditFromVal(item.fromVal);
-    setEditToVal(item.toVal === 'N/A' ? '' : item.toVal);
-    setEditRateOfInterest(item.rateOfInterest);
-    setEditChqBounceCharge(item.chqBounceCharge);
-    setEditMinimumAmount(item.minimumAmount);
-    setEditMinimumPeriod(item.minimumPeriod);
-    setEditProcessingFee(item.processingFee);
-    setEditGstPercentage(item.gstPercentage);
-    setEditFeeType(item.feeType);
-    setEditOtherPenalty(item.otherPenalty);
-    setEditGrace(item.grace);
-    setEditLpc(item.lpc);
-    setEditStatus(item.status);
+    setEditLoanType(item.loanType || 'Loan');
+    setEditInterestType(item.interestType || 'Flat');
+    setEditReducing(item.reducing || 'Daily');
+    setEditSelLoanId(item.loan_id || item.raw?.loan_id || item.raw?.Loan_id || '');
+    setEditSelLoanName(item.selectedLoan || '');
+    setEditDurationIn(item.durationIn || 'Days');
+    setEditFromVal(item.fromVal || '0');
+    setEditToVal(item.toVal === 'N/A' ? '' : item.toVal || '');
+    setEditRoi(item.rateOfInterest || '');
+    setEditChqBounce(item.chqBounceCharge || '');
+    setEditMinAmount(item.minimumAmount || '');
+    setEditMinPeriod(item.minimumPeriod || '');
+    setEditProcFee(item.processingFee || '');
+    setEditGst(item.gstPercentage || '18');
+    setEditFeeType(item.feeType || 'Percent (%)');
+    setEditPenalty(item.otherPenalty || '');
+    setEditGrace(item.grace || '');
+    setEditLpc(item.lpc || '');
+    setEditStatus(item.status || 'Active');
   };
 
-  // Update Interest Slab / Parameter
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!editingSlab) return;
 
-    setUpdating(true);
     const targetId = editingSlab.parameter_id || editingSlab.id;
+    const loanId = resolveLoanId(editSelLoanId, editSelLoanName, allProducts);
+    const loanName = resolveLoanName(loanId, editSelLoanName, allProducts);
 
-    let actualEditLoanId = editSelectedLoanId;
-    let actualEditLoanName = editSelectedLoanName;
-
-    if (!actualEditLoanId || actualEditLoanId === '--Select--') {
-      const match = allLoanProducts.find(
-        (p) => String(p.name).toLowerCase() === String(editSelectedLoanName).toLowerCase()
-      );
-      if (match) {
-        actualEditLoanId = match.id || match._id || match.loan_id;
-      }
-    }
-
-    if (!actualEditLoanName || actualEditLoanName === '--Select--') {
-      const match = allLoanProducts.find(
-        (p) => String(p.id) === String(editSelectedLoanId)
-      );
-      if (match) {
-        actualEditLoanName = match.name;
-      }
-    }
-
-    const payload = {
+    setUpdating(true);
+    const data = {
       _id: targetId,
       parameter_id: targetId,
-      slab_id: targetId,
       id: targetId,
-      loan_id: actualEditLoanId,
-      Loan_id: actualEditLoanId,
-      loan_Id: actualEditLoanId,
-      loanId: actualEditLoanId,
-      loanId: actualEditLoanId,
-      product_id: actualEditLoanId,
-      productId: actualEditLoanId,
+      loan_id: loanId,
+      Loan_id: loanId,
+      loanId: loanId,
+      product_id: loanId,
       loanType: editLoanType,
       loan_type: editLoanType,
       interestType: editInterestType,
       interest_type: editInterestType,
       reducing: editReducing,
-      selectedLoan: actualEditLoanName,
-      selected_loan: actualEditLoanName,
-      loanName: actualEditLoanName,
-      loan_name: actualEditLoanName,
+      selectedLoan: loanName,
+      loanName,
+      loan_name: loanName,
       durationIn: editDurationIn,
       duration_in: editDurationIn,
-      fromVal: editFromVal,
-      from_val: editFromVal,
-      from: editFromVal,
-      toVal: editToVal,
-      to_val: editToVal,
-      to: editToVal,
-      rateOfInterest: editRateOfInterest,
-      rate_of_interest: editRateOfInterest,
-      roi: editRateOfInterest,
-      chqBounceCharge: editChqBounceCharge,
-      chq_bounce_charge: editChqBounceCharge,
-      minimumAmount: editMinimumAmount,
-      minimum_amount: editMinimumAmount,
-      minimumPeriod: editMinimumPeriod,
-      minimum_period: editMinimumPeriod,
-      processingFee: editProcessingFee,
-      processing_fee: editProcessingFee,
-      gstPercentage: editGstPercentage,
-      gst_percentage: editGstPercentage,
+      from: editFromVal || '0',
+      fromVal: editFromVal || '0',
+      to: editToVal || '0',
+      toVal: editToVal || '0',
+      rateOfInterest: editRoi,
+      rate_of_interest: editRoi,
+      roi: editRoi,
+      chqBounceCharge: editChqBounce || '0',
+      chq_bounce_charge: editChqBounce || '0',
+      minimumAmount: editMinAmount || '0',
+      minimum_amount: editMinAmount || '0',
+      minimumPeriod: editMinPeriod || '0',
+      minimum_period: editMinPeriod || '0',
+      processingFee: editProcFee || '0',
+      processing_fee: editProcFee || '0',
+      gstPercentage: editGst || '18',
+      gst_percentage: editGst || '18',
       feeType: editFeeType,
       fee_type: editFeeType,
-      otherPenalty: editOtherPenalty,
-      other_penalty: editOtherPenalty,
-      grace: editGrace,
-      lpc: editLpc,
+      otherPenalty: editPenalty || '0',
+      other_penalty: editPenalty || '0',
+      grace: editGrace || '0',
+      lpc: editLpc || '0',
       status: editStatus,
       Status: editStatus,
     };
 
-    console.log('=== [UPDATE LOAN PARAMETER] PAYLOAD ===', payload);
+    console.log('[UPDATE] payload:', data);
 
     try {
-      const res = await axios.post(
-        `${localprimeBase}/loan-parameters/${targetId}`,
-        payload,
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-
-      console.log('=== [UPDATE LOAN PARAMETER] JSON SUCCESS ===', res.data);
-      toast.success(res.data?.message || 'Loan Parameter updated successfully!');
+      const result = await submitJson(`${BASE}/loan-parameters/${targetId}`, data);
+      console.log('[UPDATE] success:', result);
+      toast.success(result?.message || 'Loan Parameter updated successfully!');
       setEditingSlab(null);
-      fetchInterestSlabs();
+      fetchSlabs();
     } catch (err) {
-      console.error('=== [UPDATE JSON FAILED] ERROR ===', err);
-      const serverMsg = err?.response?.data?.message || err?.response?.data?.error;
-      console.error('=== [UPDATE JSON FAILED] SERVER RESPONSE DATA ===', err?.response?.data);
-
-      if (serverMsg) {
-        toast.error(serverMsg);
-        setUpdating(false);
-        return;
-      }
-
-      try {
-        const fd = new FormData();
-        Object.keys(payload).forEach((key) => {
-          if (payload[key] !== undefined && payload[key] !== null) {
-            fd.append(key, String(payload[key]));
-          }
-        });
-
-        const res2 = await axios.post(
-          `${localprimeBase}/loan-parameters/${targetId}`,
-          fd,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
-        );
-
-        console.log('=== [UPDATE LOAN PARAMETER] FORMDATA SUCCESS ===', res2.data);
-        toast.success(res2.data?.message || 'Loan Parameter updated successfully!');
-        setEditingSlab(null);
-        fetchInterestSlabs();
-      } catch (err2) {
-        console.error('=== [UPDATE FORMDATA FAILED] ERROR ===', err2);
-        console.error('=== [UPDATE FORMDATA FAILED] SERVER RESPONSE DATA ===', err2?.response?.data);
-        console.error('=== [UPDATE FORMDATA FAILED] STATUS CODE ===', err2?.response?.status);
-
-        toast.error(
-          err2?.response?.data?.message ||
-            err2?.response?.data?.error ||
-            'Failed to update Loan Parameter.'
-        );
-      }
+      console.error('[UPDATE] error:', err);
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Failed to update Loan Parameter.';
+      toast.error(msg);
     } finally {
       setUpdating(false);
     }
   };
 
-  // Search filter
+  // ── Derived ────────────────────────────────────────────────────────────────
+
   const filteredSlabs = slabs.filter((s) => {
-    const term = searchTerm.toLowerCase();
+    const t = searchTerm.toLowerCase();
     return (
-      String(s.loanType).toLowerCase().includes(term) ||
-      String(s.selectedLoan).toLowerCase().includes(term) ||
-      String(s.interestType).toLowerCase().includes(term) ||
-      String(s.rateOfInterest).toLowerCase().includes(term)
+      s.loanType.toLowerCase().includes(t) ||
+      s.selectedLoan.toLowerCase().includes(t) ||
+      s.interestType.toLowerCase().includes(t) ||
+      String(s.rateOfInterest).includes(t)
     );
   });
 
@@ -587,16 +449,37 @@ const LoanInterestSlabs = () => {
     'w-full px-3 py-1.5 bg-white border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition';
   const labelCls = 'block text-[11px] font-bold text-gray-700 mb-1';
 
+  // ── Loan dropdown helper ────────────────────────────────────────────────────
+
+  const LoanDropdown = ({ value, onChange, products, loanTypeLabel }) => (
+    <select value={value} onChange={onChange} className={inputCls} required>
+      <option value="">--Select--</option>
+      {products.length > 0 ? (
+        products.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))
+      ) : (
+        <option value="" disabled>
+          No products found for {loanTypeLabel}
+        </option>
+      )}
+    </select>
+  );
+
+  // ── JSX ────────────────────────────────────────────────────────────────────
+
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 bg-slate-50 min-h-screen">
-      {/* Top Banner Title */}
+      {/* Top Banner */}
       <div className="bg-[#3B3C6E] text-white px-4 py-2.5 rounded-t-lg shadow-sm font-semibold text-xs sm:text-sm uppercase tracking-wider mb-0 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Percent className="w-4 h-4 text-purple-200" />
           <span>CREATE LOAN INTEREST SLAB</span>
         </div>
         <button
-          onClick={fetchInterestSlabs}
+          onClick={fetchSlabs}
           className="hover:bg-white/10 p-1 rounded transition text-xs flex items-center gap-1"
           title="Refresh List"
         >
@@ -604,20 +487,19 @@ const LoanInterestSlabs = () => {
         </button>
       </div>
 
-      {/* Main Creation Form */}
+      {/* Create Form */}
       <div className="bg-white border-x border-b border-gray-200 shadow-sm mb-6 rounded-b-lg overflow-hidden">
         <form onSubmit={handleCreate} className="p-4 sm:p-6 space-y-4">
-          {/* Row 1 Controls */}
+          {/* Row 1 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-            {/* Loan Type */}
             <div>
               <label className={labelCls}>Loan Type</label>
               <select
                 value={loanType}
                 onChange={(e) => {
                   setLoanType(e.target.value);
-                  setSelectedLoanId('');
-                  setSelectedLoanName('--Select--');
+                  setSelLoanId('');
+                  setSelLoanName('');
                 }}
                 className={inputCls}
               >
@@ -627,27 +509,17 @@ const LoanInterestSlabs = () => {
               </select>
             </div>
 
-            {/* Interest Type */}
             <div>
               <label className={labelCls}>Interest Type</label>
-              <select
-                value={interestType}
-                onChange={(e) => setInterestType(e.target.value)}
-                className={inputCls}
-              >
+              <select value={interestType} onChange={(e) => setInterestType(e.target.value)} className={inputCls}>
                 <option value="Flat">Flat</option>
                 <option value="Reducing">Reducing</option>
               </select>
             </div>
 
-            {/* Reducing */}
             <div>
               <label className={labelCls}>Reducing</label>
-              <select
-                value={reducing}
-                onChange={(e) => setReducing(e.target.value)}
-                className={inputCls}
-              >
+              <select value={reducing} onChange={(e) => setReducing(e.target.value)} className={inputCls}>
                 <option value="Daily">Daily</option>
                 <option value="Monthly">Monthly</option>
                 <option value="Weekly">Weekly</option>
@@ -655,56 +527,29 @@ const LoanInterestSlabs = () => {
               </select>
             </div>
 
-            {/* Select Loan (Filtered by Loan Type from /loan-products) */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-bold text-gray-700">
-                  Select Loan
-                </label>
+                <label className="block text-[11px] font-bold text-gray-700">Select Loan</label>
                 <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1 rounded">
                   Filtered by {loanType}
                 </span>
               </div>
-              <select
-                value={selectedLoanId}
+              <LoanDropdown
+                value={selLoanId}
                 onChange={(e) => {
-                  const chosenId = e.target.value;
-                  setSelectedLoanId(chosenId);
-                  const prod = allLoanProducts.find(
-                    (p) => String(p.id) === String(chosenId)
-                  );
-                  if (prod) {
-                    setSelectedLoanName(prod.name);
-                  } else {
-                    setSelectedLoanName('--Select--');
-                  }
+                  const id = e.target.value;
+                  setSelLoanId(id);
+                  const p = allProducts.find((p) => p.id === id);
+                  setSelLoanName(p ? p.name : '');
                 }}
-                className={inputCls}
-                required
-              >
-                <option value="">--Select--</option>
-                {filteredLoanProductsForForm.length > 0 ? (
-                  filteredLoanProductsForForm.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))
-                ) : (
-                  <option value="" disabled>
-                    No products found for {loanType}
-                  </option>
-                )}
-              </select>
+                products={productsForCreate}
+                loanTypeLabel={loanType}
+              />
             </div>
 
-            {/* Duration In */}
             <div>
               <label className={labelCls}>Duration In</label>
-              <select
-                value={durationIn}
-                onChange={(e) => setDurationIn(e.target.value)}
-                className={inputCls}
-              >
+              <select value={durationIn} onChange={(e) => setDurationIn(e.target.value)} className={inputCls}>
                 <option value="Days">Days</option>
                 <option value="Months">Months</option>
                 <option value="Years">Years</option>
@@ -712,161 +557,71 @@ const LoanInterestSlabs = () => {
             </div>
           </div>
 
-          {/* Sub-Header Section Banner: Edit / Details */}
+          {/* Section Banner */}
           <div className="bg-[#5C5E9B] text-white px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider mt-4">
             Edit / Slab Parameters
           </div>
 
-          {/* Row 2 & 3 Input Fields Grid */}
+          {/* Row 2+ Parameter Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 text-xs">
-            <div>
-              <label className={labelCls}>From</label>
-              <input
-                type="text"
-                value={fromVal}
-                onChange={(e) => setFromVal(e.target.value)}
-                placeholder="0"
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>To</label>
-              <input
-                type="text"
-                value={toVal}
-                onChange={(e) => setToVal(e.target.value)}
-                placeholder="Date Range"
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Rate of Interest</label>
-              <input
-                type="text"
-                value={rateOfInterest}
-                onChange={(e) => setRateOfInterest(e.target.value)}
-                placeholder="Enter %age"
-                className={inputCls}
-                required
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Chq Bounce Charge</label>
-              <input
-                type="text"
-                value={chqBounceCharge}
-                onChange={(e) => setChqBounceCharge(e.target.value)}
-                placeholder="Enter %age"
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Minimum Amount</label>
-              <input
-                type="text"
-                value={minimumAmount}
-                onChange={(e) => setMinimumAmount(e.target.value)}
-                placeholder="Enter Value"
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Minimum Period</label>
-              <input
-                type="text"
-                value={minimumPeriod}
-                onChange={(e) => setMinimumPeriod(e.target.value)}
-                placeholder="Enter Value"
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Processing Fee</label>
-              <input
-                type="text"
-                value={processingFee}
-                onChange={(e) => setProcessingFee(e.target.value)}
-                placeholder="Enter %age"
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>GST(%)</label>
-              <input
-                type="text"
-                value={gstPercentage}
-                onChange={(e) => setGstPercentage(e.target.value)}
-                placeholder="18"
-                className={inputCls}
-              />
-            </div>
+            {[
+              ['From', fromVal, setFromVal, '0'],
+              ['To', toVal, setToVal, 'Date Range'],
+              ['Rate of Interest', roi, setRoi, 'Enter %age', true],
+              ['Chq Bounce Charge', chqBounce, setChqBounce, 'Enter %age'],
+              ['Minimum Amount', minAmount, setMinAmount, 'Enter Value'],
+              ['Minimum Period', minPeriod, setMinPeriod, 'Enter Value'],
+              ['Processing Fee', procFee, setProcFee, 'Enter %age'],
+              ['GST(%)', gst, setGst, '18'],
+            ].map(([label, val, setter, ph, req]) => (
+              <div key={label}>
+                <label className={labelCls}>{label}</label>
+                <input
+                  type="text"
+                  value={val}
+                  onChange={(e) => setter(e.target.value)}
+                  placeholder={ph}
+                  className={inputCls}
+                  required={!!req}
+                />
+              </div>
+            ))}
 
             <div>
               <label className={labelCls}>Type</label>
-              <select
-                value={feeType}
-                onChange={(e) => setFeeType(e.target.value)}
-                className={inputCls}
-              >
+              <select value={feeType} onChange={(e) => setFeeType(e.target.value)} className={inputCls}>
                 <option value="Percent (%)">Percent (%)</option>
                 <option value="Flat / Amount">Flat / Amount</option>
               </select>
             </div>
 
-            <div>
-              <label className={labelCls}>Other Penalty</label>
-              <input
-                type="text"
-                value={otherPenalty}
-                onChange={(e) => setOtherPenalty(e.target.value)}
-                placeholder="Enter %age"
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Grace</label>
-              <input
-                type="text"
-                value={grace}
-                onChange={(e) => setGrace(e.target.value)}
-                placeholder="In days"
-                className={inputCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>LPC</label>
-              <input
-                type="text"
-                value={lpc}
-                onChange={(e) => setLpc(e.target.value)}
-                placeholder="LPC Value"
-                className={inputCls}
-              />
-            </div>
+            {[
+              ['Other Penalty', penalty, setPenalty, 'Enter %age'],
+              ['Grace', grace, setGrace, 'In days'],
+              ['LPC', lpc, setLpc, 'LPC Value'],
+            ].map(([label, val, setter, ph]) => (
+              <div key={label}>
+                <label className={labelCls}>{label}</label>
+                <input
+                  type="text"
+                  value={val}
+                  onChange={(e) => setter(e.target.value)}
+                  placeholder={ph}
+                  className={inputCls}
+                />
+              </div>
+            ))}
 
             <div>
               <label className={labelCls}>Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className={inputCls}
-              >
+              <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls}>
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
               </select>
             </div>
           </div>
 
-          {/* Submit Button Bar */}
+          {/* Submit */}
           <div className="flex justify-end pt-2">
             <button
               type="submit"
@@ -886,7 +641,7 @@ const LoanInterestSlabs = () => {
         </form>
       </div>
 
-      {/* Directory Header Bar */}
+      {/* Directory Header */}
       <div className="bg-white rounded-t-lg border border-gray-200 p-4 flex flex-col sm:flex-row justify-between items-center gap-3">
         <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wide flex items-center gap-2">
           Interest Slabs Directory
@@ -894,8 +649,6 @@ const LoanInterestSlabs = () => {
             {filteredSlabs.length} Slabs
           </span>
         </h2>
-
-        {/* Search */}
         <div className="relative w-full sm:w-64">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
           <input
@@ -908,34 +661,22 @@ const LoanInterestSlabs = () => {
         </div>
       </div>
 
-      {/* Table Directory */}
+      {/* Directory Table */}
       <div className="bg-white border-x border-b border-gray-200 rounded-b-lg overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#3B3C6E] text-white text-xs uppercase tracking-wider font-semibold">
-                <th className="py-3 px-3 w-14 text-center border-r border-indigo-900/50">
-                  S.no.
-                </th>
-                <th className="py-3 px-3 border-r border-indigo-900/50">
-                  Loan Type
-                </th>
-                <th className="py-3 px-3 border-r border-indigo-900/50">
-                  Selected Loan
-                </th>
-                <th className="py-3 px-3 border-r border-indigo-900/50">
-                  Interest Type
-                </th>
-                <th className="py-3 px-3 border-r border-indigo-900/50 text-center">
-                  ROI (%)
-                </th>
-                <th className="py-3 px-3 border-r border-indigo-900/50 text-center">
-                  Duration
-                </th>
-                <th className="py-3 px-3 border-r border-indigo-900/50 text-center">
-                  Status
-                </th>
-                <th className="py-3 px-4 w-24 text-center">Actions</th>
+                {['S.no.', 'Loan Type', 'Selected Loan', 'Interest Type', 'ROI (%)', 'Duration', 'Status', 'Actions'].map(
+                  (h, i) => (
+                    <th
+                      key={h}
+                      className={`py-3 px-3 ${i === 0 ? 'w-14 text-center' : ''} ${i === 7 ? 'w-24 text-center' : ''} ${i < 7 ? 'border-r border-indigo-900/50' : ''}`}
+                    >
+                      {h}
+                    </th>
+                  )
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-xs sm:text-sm">
@@ -965,27 +706,21 @@ const LoanInterestSlabs = () => {
                     <td className="py-3 px-3 font-semibold text-gray-700 text-center border-r border-gray-100">
                       {index + 1}
                     </td>
-
                     <td className="py-3 px-3 font-bold text-gray-800 border-r border-gray-100">
                       {item.loanType}
                     </td>
-
                     <td className="py-3 px-3 font-semibold text-indigo-900 border-r border-gray-100">
                       {item.selectedLoan}
                     </td>
-
                     <td className="py-3 px-3 text-gray-600 border-r border-gray-100">
                       {item.interestType} ({item.reducing})
                     </td>
-
                     <td className="py-3 px-3 font-extrabold text-emerald-700 text-center border-r border-gray-100">
                       {item.rateOfInterest}%
                     </td>
-
                     <td className="py-3 px-3 text-center border-r border-gray-100 text-gray-600 font-medium">
                       {item.durationIn}
                     </td>
-
                     <td className="py-3 px-3 text-center border-r border-gray-100">
                       <span
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
@@ -1002,8 +737,6 @@ const LoanInterestSlabs = () => {
                         {item.status}
                       </span>
                     </td>
-
-                    {/* Actions: View & Edit */}
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
@@ -1030,7 +763,7 @@ const LoanInterestSlabs = () => {
         </div>
       </div>
 
-      {/* --- View All Details Modal --- */}
+      {/* View Details Modal */}
       {selectedSlab && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
@@ -1039,10 +772,7 @@ const LoanInterestSlabs = () => {
                 <Percent className="w-5 h-5 text-indigo-600" />
                 Interest Slab Details — {selectedSlab.selectedLoan}
               </h3>
-              <button
-                onClick={() => setSelectedSlab(null)}
-                className="text-gray-400 hover:text-gray-600 text-lg font-bold"
-              >
+              <button onClick={() => setSelectedSlab(null)} className="text-gray-400 hover:text-gray-600 text-lg font-bold">
                 &times;
               </button>
             </div>
@@ -1050,12 +780,8 @@ const LoanInterestSlabs = () => {
             <div className="space-y-4 text-xs">
               <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 flex justify-between items-center">
                 <div>
-                  <span className="text-gray-400 font-semibold block text-[11px]">
-                    Selected Loan
-                  </span>
-                  <span className="text-sm font-extrabold text-gray-900">
-                    {selectedSlab.selectedLoan}
-                  </span>
+                  <span className="text-gray-400 font-semibold block text-[11px]">Selected Loan</span>
+                  <span className="text-sm font-extrabold text-gray-900">{selectedSlab.selectedLoan}</span>
                 </div>
                 <span
                   className={`px-3 py-1 rounded-full font-bold ${
@@ -1068,142 +794,29 @@ const LoanInterestSlabs = () => {
                 </span>
               </div>
 
-              {/* Grid of ALL Parameters */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Loan Type
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.loanType}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Interest Type
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.interestType}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Reducing
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.reducing}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Duration In
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.durationIn}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Rate of Interest (ROI)
-                  </span>
-                  <span className="font-bold text-emerald-700 text-sm">
-                    {selectedSlab.rateOfInterest}%
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Chq Bounce Charge
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.chqBounceCharge}%
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    From - To
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.fromVal} - {selectedSlab.toVal}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Minimum Amount
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.minimumAmount}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Minimum Period
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.minimumPeriod}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Processing Fee
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.processingFee} ({selectedSlab.feeType})
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    GST (%)
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.gstPercentage}%
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Other Penalty
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.otherPenalty}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Grace (days)
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.grace}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    LPC
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.lpc}
-                  </span>
-                </div>
-
-                <div className="p-2.5 bg-gray-50 rounded-lg">
-                  <span className="text-gray-400 font-semibold block text-[10px]">
-                    Created Date
-                  </span>
-                  <span className="font-bold text-gray-800">
-                    {selectedSlab.createdAt}
-                  </span>
-                </div>
+                {[
+                  ['Loan Type', selectedSlab.loanType],
+                  ['Interest Type', selectedSlab.interestType],
+                  ['Reducing', selectedSlab.reducing],
+                  ['Duration In', selectedSlab.durationIn],
+                  ['Rate of Interest (ROI)', `${selectedSlab.rateOfInterest}%`],
+                  ['Chq Bounce Charge', `${selectedSlab.chqBounceCharge}%`],
+                  ['From - To', `${selectedSlab.fromVal} - ${selectedSlab.toVal}`],
+                  ['Minimum Amount', selectedSlab.minimumAmount],
+                  ['Minimum Period', selectedSlab.minimumPeriod],
+                  ['Processing Fee', `${selectedSlab.processingFee} (${selectedSlab.feeType})`],
+                  ['GST (%)', `${selectedSlab.gstPercentage}%`],
+                  ['Other Penalty', selectedSlab.otherPenalty],
+                  ['Grace (days)', selectedSlab.grace],
+                  ['LPC', selectedSlab.lpc],
+                  ['Created Date', selectedSlab.createdAt],
+                ].map(([label, val]) => (
+                  <div key={label} className="p-2.5 bg-gray-50 rounded-lg">
+                    <span className="text-gray-400 font-semibold block text-[10px]">{label}</span>
+                    <span className="font-bold text-gray-800">{val}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -1229,7 +842,7 @@ const LoanInterestSlabs = () => {
         </div>
       )}
 
-      {/* --- Edit All Parameters Modal --- */}
+      {/* Edit Modal */}
       {editingSlab && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
@@ -1238,10 +851,7 @@ const LoanInterestSlabs = () => {
                 <Edit className="w-5 h-5 text-indigo-600" />
                 Edit Interest Slab
               </h3>
-              <button
-                onClick={() => setEditingSlab(null)}
-                className="text-gray-400 hover:text-gray-600 text-lg font-bold"
-              >
+              <button onClick={() => setEditingSlab(null)} className="text-gray-400 hover:text-gray-600 text-lg font-bold">
                 &times;
               </button>
             </div>
@@ -1254,8 +864,8 @@ const LoanInterestSlabs = () => {
                     value={editLoanType}
                     onChange={(e) => {
                       setEditLoanType(e.target.value);
-                      setEditSelectedLoanId('');
-                      setEditSelectedLoanName('--Select--');
+                      setEditSelLoanId('');
+                      setEditSelLoanName('');
                     }}
                     className={inputCls}
                   >
@@ -1267,11 +877,7 @@ const LoanInterestSlabs = () => {
 
                 <div>
                   <label className={labelCls}>Interest Type</label>
-                  <select
-                    value={editInterestType}
-                    onChange={(e) => setEditInterestType(e.target.value)}
-                    className={inputCls}
-                  >
+                  <select value={editInterestType} onChange={(e) => setEditInterestType(e.target.value)} className={inputCls}>
                     <option value="Flat">Flat</option>
                     <option value="Reducing">Reducing</option>
                   </select>
@@ -1279,11 +885,7 @@ const LoanInterestSlabs = () => {
 
                 <div>
                   <label className={labelCls}>Reducing</label>
-                  <select
-                    value={editReducing}
-                    onChange={(e) => setEditReducing(e.target.value)}
-                    className={inputCls}
-                  >
+                  <select value={editReducing} onChange={(e) => setEditReducing(e.target.value)} className={inputCls}>
                     <option value="Daily">Daily</option>
                     <option value="Monthly">Monthly</option>
                     <option value="Weekly">Weekly</option>
@@ -1293,207 +895,98 @@ const LoanInterestSlabs = () => {
 
                 <div>
                   <label className={labelCls}>Select Loan</label>
-                  <select
-                    value={editSelectedLoanId}
+                  <LoanDropdown
+                    value={editSelLoanId}
                     onChange={(e) => {
-                      const chosenId = e.target.value;
-                      setEditSelectedLoanId(chosenId);
-                      const prod = allLoanProducts.find(
-                        (p) => String(p.id) === String(chosenId)
-                      );
-                      if (prod) {
-                        setEditSelectedLoanName(prod.name);
-                      } else {
-                        setEditSelectedLoanName('--Select--');
-                      }
+                      const id = e.target.value;
+                      setEditSelLoanId(id);
+                      const p = allProducts.find((p) => p.id === id);
+                      setEditSelLoanName(p ? p.name : '');
                     }}
-                    className={inputCls}
-                    required
-                  >
-                    <option value="">--Select--</option>
-                    {filteredLoanProductsForEdit.length > 0 ? (
-                      filteredLoanProductsForEdit.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="" disabled>
-                        No products found for {editLoanType}
-                      </option>
-                    )}
-                  </select>
+                    products={productsForEdit}
+                    loanTypeLabel={editLoanType}
+                  />
                 </div>
 
                 <div>
                   <label className={labelCls}>Duration In</label>
-                  <select
-                    value={editDurationIn}
-                    onChange={(e) => setEditDurationIn(e.target.value)}
-                    className={inputCls}
-                  >
+                  <select value={editDurationIn} onChange={(e) => setEditDurationIn(e.target.value)} className={inputCls}>
                     <option value="Days">Days</option>
                     <option value="Months">Months</option>
                     <option value="Years">Years</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className={labelCls}>From</label>
-                  <input
-                    type="text"
-                    value={editFromVal}
-                    onChange={(e) => setEditFromVal(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>To</label>
-                  <input
-                    type="text"
-                    value={editToVal}
-                    onChange={(e) => setEditToVal(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>Rate of Interest</label>
-                  <input
-                    type="text"
-                    value={editRateOfInterest}
-                    onChange={(e) => setEditRateOfInterest(e.target.value)}
-                    className={inputCls}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>Chq Bounce Charge</label>
-                  <input
-                    type="text"
-                    value={editChqBounceCharge}
-                    onChange={(e) => setEditChqBounceCharge(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>Minimum Amount</label>
-                  <input
-                    type="text"
-                    value={editMinimumAmount}
-                    onChange={(e) => setEditMinimumAmount(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>Minimum Period</label>
-                  <input
-                    type="text"
-                    value={editMinimumPeriod}
-                    onChange={(e) => setEditMinimumPeriod(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>Processing Fee</label>
-                  <input
-                    type="text"
-                    value={editProcessingFee}
-                    onChange={(e) => setEditProcessingFee(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>GST(%)</label>
-                  <input
-                    type="text"
-                    value={editGstPercentage}
-                    onChange={(e) => setEditGstPercentage(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
+                {[
+                  ['From', editFromVal, setEditFromVal],
+                  ['To', editToVal, setEditToVal],
+                  ['Rate of Interest', editRoi, setEditRoi, true],
+                  ['Chq Bounce Charge', editChqBounce, setEditChqBounce],
+                  ['Minimum Amount', editMinAmount, setEditMinAmount],
+                  ['Minimum Period', editMinPeriod, setEditMinPeriod],
+                  ['Processing Fee', editProcFee, setEditProcFee],
+                  ['GST(%)', editGst, setEditGst],
+                ].map(([label, val, setter, req]) => (
+                  <div key={label}>
+                    <label className={labelCls}>{label}</label>
+                    <input
+                      type="text"
+                      value={val}
+                      onChange={(e) => setter(e.target.value)}
+                      className={inputCls}
+                      required={!!req}
+                    />
+                  </div>
+                ))}
 
                 <div>
                   <label className={labelCls}>Type</label>
-                  <select
-                    value={editFeeType}
-                    onChange={(e) => setEditFeeType(e.target.value)}
-                    className={inputCls}
-                  >
+                  <select value={editFeeType} onChange={(e) => setEditFeeType(e.target.value)} className={inputCls}>
                     <option value="Percent (%)">Percent (%)</option>
                     <option value="Flat / Amount">Flat / Amount</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className={labelCls}>Other Penalty</label>
-                  <input
-                    type="text"
-                    value={editOtherPenalty}
-                    onChange={(e) => setEditOtherPenalty(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>Grace</label>
-                  <input
-                    type="text"
-                    value={editGrace}
-                    onChange={(e) => setEditGrace(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelCls}>LPC</label>
-                  <input
-                    type="text"
-                    value={editLpc}
-                    onChange={(e) => setEditLpc(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
+                {[
+                  ['Other Penalty', editPenalty, setEditPenalty],
+                  ['Grace', editGrace, setEditGrace],
+                  ['LPC', editLpc, setEditLpc],
+                ].map(([label, val, setter]) => (
+                  <div key={label}>
+                    <label className={labelCls}>{label}</label>
+                    <input type="text" value={val} onChange={(e) => setter(e.target.value)} className={inputCls} />
+                  </div>
+                ))}
 
                 <div>
                   <label className={labelCls}>Status</label>
-                  <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
-                    className={inputCls}
-                  >
+                  <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} className={inputCls}>
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                   </select>
                 </div>
               </div>
 
-              <div className="pt-4 flex justify-end gap-2 border-t border-gray-100">
+              <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setEditingSlab(null)}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-md text-xs transition"
+                  className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-md text-xs transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={updating}
-                  className="px-5 py-2 bg-[#2D336B] hover:bg-[#222754] text-white font-bold rounded-md text-xs transition flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-6 py-2 bg-[#2D336B] hover:bg-[#222754] text-white font-bold rounded-md text-xs transition flex items-center gap-1.5 disabled:opacity-50"
                 >
                   {updating ? (
                     <>
-                      <Loader className="w-3.5 h-3.5 animate-spin" />
+                      <Loader className="w-4 h-4 animate-spin" />
                       Updating...
                     </>
                   ) : (
-                    'Save Changes'
+                    'Update'
                   )}
                 </button>
               </div>

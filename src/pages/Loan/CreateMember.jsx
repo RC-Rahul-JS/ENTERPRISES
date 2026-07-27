@@ -140,12 +140,10 @@ const MemberApplicationForm = () => {
     showLoader();
 
     try {
-      const res = await axios.post(
-        'https://apipoultry.duniyape.in/api/aadhar/send-otp',
-        {
-          uid: formdata.aadharnumber,
-        }
-      );
+      const aadharOtpBase = import.meta.env.VITE_AADHAR_OTP_URL || 'https://apipoultry.duniyape.in/api/aadhar';
+      const res = await axios.post(`${aadharOtpBase}/send-otp`, {
+        uid: formdata.aadharnumber,
+      });
 
       console.log(res.data);
 
@@ -173,13 +171,11 @@ const MemberApplicationForm = () => {
     showLoader();
 
     try {
-      const res = await axios.post(
-        'https://apipoultry.duniyape.in/api/aadhar/verify-otp',
-        {
-          otp: Otp,
-          sessionId: formdata.aadhartxn,
-        }
-      );
+      const aadharOtpBase = import.meta.env.VITE_AADHAR_OTP_URL || 'https://apipoultry.duniyape.in/api/aadhar';
+      const res = await axios.post(`${aadharOtpBase}/verify-otp`, {
+        otp: Otp,
+        sessionId: formdata.aadhartxn,
+      });
 
       const data = res.data;
       console.log(data);
@@ -328,7 +324,8 @@ const MemberApplicationForm = () => {
       console.log(pair[0] + ':', pair[1]);
     }
 
-    const api = 'http://192.168.29.145:5000/badri_enterprises/localprime/create-member';
+    const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
+    const api = `${localprimeBase}/create-member-request`;
 
     try {
       const res = await axios.post(api, formDataPayload, {
@@ -337,8 +334,8 @@ const MemberApplicationForm = () => {
         },
       });
 
-      console.log('Create Member API Success Response:', res.data);
-      toast.success(res.data?.message || 'Member Created Successfully!');
+      console.log('Create Member Request API Success Response:', res.data);
+      toast.success(res.data?.message || 'Member Request Submitted! Pending admin approval.');
       setformdata({
         ...initialFormData,
         introducername: formdata.introducername,
@@ -347,8 +344,8 @@ const MemberApplicationForm = () => {
       });
       settab(1);
     } catch (error) {
-      console.error('Error creating member:', error);
-      toast.error(error?.response?.data?.message || 'Failed to create member');
+      console.error('Error creating member request:', error);
+      toast.error(error?.response?.data?.message || 'Failed to submit member request');
     } finally {
       hideLoader();
     }
@@ -358,7 +355,8 @@ const MemberApplicationForm = () => {
     const mid = targetMid || formdata.introducerid;
     if (!mid || mid.trim().length < 4) return;
     showLoader();
-    const api = `http://192.168.29.145:5000/badri_enterprises/localprime/members?memberId=${mid.trim()}`;
+    const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
+    const api = `${localprimeBase}/members?memberId=${mid.trim()}`;
     try {
       const res = await axios.get(api);
       console.log('Fetched Member Data:', res.data);

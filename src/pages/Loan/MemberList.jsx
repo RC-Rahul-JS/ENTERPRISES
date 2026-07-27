@@ -30,10 +30,11 @@ const MemberList = () => {
   const [editFormData, setEditFormData] = useState({});
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Fetch all members from API
+  // Fetch only Accepted members from API
   const fetchMembers = async () => {
     setLoading(true);
-    const api = 'http://192.168.29.145:5000/badri_enterprises/localprime/get-members';
+    const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
+    const api = `${localprimeBase}/get-members`;
     try {
       const res = await axios.get(api);
       console.log('Fetched Members List Response:', res.data);
@@ -50,16 +51,24 @@ const MemberList = () => {
       }
 
       // Normalize data fields strictly from API
-      const normalized = rawList.map((item, idx) => {
+      const normalized = rawList
+        .filter((item) => {
+          const s = (
+            item.Status ||
+            item.status ||
+            item.request_status ||
+            item.approval_status ||
+            item.member_status ||
+            ''
+          ).toLowerCase();
+          return s !== 'rejected' && s !== 'pending';
+        })
+        .map((item, idx) => {
         const id = item.memberId || item.MemberId || item._id || `MEM-${1000 + idx}`;
         const firstName = item.FirstName || item.firstname || item.first_name || '';
         const lastName = item.LastName || item.lastname || item.last_name || '';
         
         let name = `${firstName} ${lastName}`.trim();
-        // let name = item.MemberName || item.memberName || item.name || item.Name || '';
-        // if (!name && (firstName || lastName)) {
-        //   name = `${firstName} ${lastName}`.trim();
-        // }
 
         const phone = item.MobileNo || item.phone || item.mobile || 'N/A';
         const email = item.Email || item.email || '';
@@ -97,6 +106,7 @@ const MemberList = () => {
       setMembers(normalized);
     } catch (error) {
       console.error('Error fetching members from API:', error);
+
       setMembers([]);
     } finally {
       setLoading(false);
@@ -311,12 +321,14 @@ const MemberList = () => {
     console.log(`--- Updating Member (mongoId: ${mongoId}, memberId: ${memberId}) ---`);
     console.log('JSON Payload:', jsonPayload);
 
+    const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
+
     // Try API endpoints & methods sequentially
     const endpointsToTry = [
-      { url: `http://192.168.29.145:5000/badri_enterprises/localprime/members/${mongoId}`, method: 'post' },
-      { url: `http://192.168.29.145:5000/badri_enterprises/localprime/members/${memberId}`, method: 'post' },
-      { url: `http://192.168.29.145:5000/badri_enterprises/localprime/members/${mongoId}`, method: 'put' },
-      { url: `http://192.168.29.145:5000/badri_enterprises/localprime/members/${memberId}`, method: 'put' },
+      { url: `${localprimeBase}/members/${mongoId}`, method: 'post' },
+      { url: `${localprimeBase}/members/${memberId}`, method: 'post' },
+      { url: `${localprimeBase}/members/${mongoId}`, method: 'put' },
+      { url: `${localprimeBase}/members/${memberId}`, method: 'put' },
     ];
 
     let successRes = null;
@@ -426,7 +438,7 @@ const MemberList = () => {
             Member Directory
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Fetch, view, search, and edit member application details in real-time.
+            Showing <span className="font-semibold text-emerald-600">Accepted</span> members only. Use Member Requests tab to manage pending applications.
           </p>
         </div>
 

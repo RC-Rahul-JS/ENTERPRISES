@@ -14,6 +14,8 @@ import CreateBranch from './pages/Loan/CreateBranch';
 import BranchList from './pages/Loan/BranchList';
 import LoanProducts from './pages/Loan/LoanProducts';
 import LoanInterestSlabs from './pages/Loan/LoanInterestSlabs';
+import LoanCalculator from './pages/Loan/LoanCalculator';
+import ApplyLoan from './pages/Loan/ApplyLoan';
 import Payments from './pages/Payments/Payments';
 import Reports from './pages/Reports/Reports';
 import Designation from './pages/Designation/Designation';
@@ -131,6 +133,8 @@ function App() {
                 <Route path="branch_list" element={<BranchList/>} />
                 <Route path="loan_products" element={<LoanProducts/>} />
                 <Route path="interest_slabs" element={<LoanInterestSlabs/>} />
+                <Route path="loan_calculator" element={<LoanCalculator/>} />
+                <Route path="apply_loan" element={<ApplyLoan/>} />
             </Route>
 
           <Route path="/register" element={<Register />} />

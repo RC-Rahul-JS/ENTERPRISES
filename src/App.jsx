@@ -9,6 +9,11 @@ import Tabs_layout from './Layout/Tabs_layout';
 import {ledger_tabs, loan_tabs, payments_tabs, report_tabs, setting_tabs, staff_tabs, trade_tabs } from './utils/tabs';
 import CreateMember from './pages/Loan/CreateMember';
 import MemberList from './pages/Loan/MemberList';
+import MemberRequests from './pages/Loan/MemberRequests';
+import CreateBranch from './pages/Loan/CreateBranch';
+import BranchList from './pages/Loan/BranchList';
+import LoanProducts from './pages/Loan/LoanProducts';
+import LoanInterestSlabs from './pages/Loan/LoanInterestSlabs';
 import Payments from './pages/Payments/Payments';
 import Reports from './pages/Reports/Reports';
 import Designation from './pages/Designation/Designation';
@@ -120,7 +125,12 @@ function App() {
             <Route path="/loan/" element={<Tabs_layout tabs={loan_tabs} />} >
                 <Route path="" element={<CreateMember/>} />
                 <Route path="create_member" element={<CreateMember/>} />
+                <Route path="member_requests" element={<MemberRequests/>} />
                 <Route path="member_list" element={<MemberList/>} />
+                <Route path="create_branch" element={<CreateBranch/>} />
+                <Route path="branch_list" element={<BranchList/>} />
+                <Route path="loan_products" element={<LoanProducts/>} />
+                <Route path="interest_slabs" element={<LoanInterestSlabs/>} />
             </Route>
 
           <Route path="/register" element={<Register />} />

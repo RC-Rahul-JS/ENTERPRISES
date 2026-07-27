@@ -59,5 +59,10 @@ export const trade_tabs = [
 
 export const loan_tabs = [
     { label: 'CREATE MEMBER', route: '' },
+    { label: 'MEMBER REQUESTS', route: 'member_requests' },
     { label: 'MEMBER LIST', route: 'member_list' },
+    { label: 'CREATE BRANCH', route: 'create_branch' },
+    { label: 'BRANCH LIST', route: 'branch_list' },
+    { label: 'LOAN PRODUCTS', route: 'loan_products' },
+    { label: 'INTEREST SLAB', route: 'interest_slabs' },
   ];

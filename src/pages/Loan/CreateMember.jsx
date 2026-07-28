@@ -100,6 +100,7 @@ const MemberApplicationForm = () => {
     idback: '',
     addfront: '',
     addback: '',
+    membertype: '',
   };
 
   const [formdata, setformdata] = useState(initialFormData);
@@ -624,6 +625,12 @@ const MemberApplicationForm = () => {
                 type: 'select',
                 name: 'category',
                 options: ['General', 'OBC', 'SC', 'ST'],
+              },
+              {
+                label: 'Member Type',
+                type: 'select',
+                name: 'membertype',
+                options: ['Agent', 'Regular', 'Associate', 'Senior'],
               },
               { label: 'Mobile', name: 'mobile', type: 'tel' },
               { label: 'Email', name: 'email', type: 'email' },

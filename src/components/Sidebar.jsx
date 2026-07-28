@@ -190,6 +190,21 @@ const Sidebar = ({ onClose }) => {
                   <HiCreditCard className="w-4 h-4 opacity-70" />
                   Apply Loan
                 </NavLink>
+
+                {/* Agent Designation */}
+                <NavLink
+                  to="/loan/agent_designation"
+                  className={({ isActive }) =>
+                    `flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
+                      isActive
+                        ? 'bg-purple-50 text-purple-700 font-semibold'
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
+                    }`
+                  }
+                >
+                  <HiUserGroup className="w-4 h-4 opacity-70" />
+                  Agent Designation
+                </NavLink>
               </div>
             )}
           </div>

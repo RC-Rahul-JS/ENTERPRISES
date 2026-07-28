@@ -48,29 +48,29 @@ const DesignationPage = () => {
       console.log(res)
       if (Array.isArray(res)) {
         setDesignations(res);
-      } 
+      }
     } catch (error) {
       console.error("Failed to load appointments:", error);
-      showErrorAlert("Error", "Could not load Data. Please try again."); 
+      showErrorAlert("Error", "Could not load Data. Please try again.");
     }
   };
   useEffect(() => {
-        fetchdata();
-      }, []);
-  
+    fetchdata();
+  }, []);
 
-  const handleSubmit = async(e) => {
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (designation.trim() === "") return;
-     try {
-        await postData(`/trade/designation`, { name: designation.trim(),permissions: modalPermissions });
-        showSuccessAlert('Success!', editIndex?"Updated Successfully":'Created successfully');
-        setDesignation("");
-        fetchdata()
-        } catch (error) {
-          console.error("Failed to save group:", error);
-          showErrorAlert("Error", "Could not save. Please try again.");   
-        }    
+    try {
+      await postData(`/trade/designation`, { name: designation.trim(), permissions: modalPermissions });
+      showSuccessAlert('Success!', editIndex ? "Updated Successfully" : 'Created successfully');
+      setDesignation("");
+      fetchdata()
+    } catch (error) {
+      console.error("Failed to save group:", error);
+      showErrorAlert("Error", "Could not save. Please try again.");
+    }
   };
 
   const handleDelete = (index) => {
@@ -82,22 +82,22 @@ const DesignationPage = () => {
     setEditValue(designations[index].name);
   };
 
-  const handleSave = async(index) => {
+  const handleSave = async (index) => {
     if (editValue.trim() === "") return;
     const updated = [...designations];
     updated[index].name = editValue;
-     try {
-        await postData(`/trade/designation`, updated[index]);
-        showSuccessAlert('Success!', 'Updated Successfully');
-        fetchdata()
-        setDesignation("");
-        setEditIndex(null);
-        setEditValue("");
-        } catch (error) {
-          console.error("Failed to save group:", error);
-          showErrorAlert("Error", "Could not save. Please try again.");   
-        } 
- 
+    try {
+      await postData(`/trade/designation`, updated[index]);
+      showSuccessAlert('Success!', 'Updated Successfully');
+      fetchdata()
+      setDesignation("");
+      setEditIndex(null);
+      setEditValue("");
+    } catch (error) {
+      console.error("Failed to save group:", error);
+      showErrorAlert("Error", "Could not save. Please try again.");
+    }
+
   };
 
   const handleOpenPermissions = (index) => {
@@ -108,10 +108,10 @@ const DesignationPage = () => {
 
   const handleCheckboxChange = (type, value, group = null) => {
     const permString = `${type}: ${value}`;
-    
+
     setModalPermissions((prevPermissions) => {
       let newPerms = new Set(prevPermissions);
-      
+
       if (newPerms.has(permString)) {
         // Unchecking
         newPerms.delete(permString);
@@ -127,26 +127,26 @@ const DesignationPage = () => {
           newPerms.add(`Sidebar: ${group.sidebar}`);
         }
       }
-      
+
       return Array.from(newPerms);
     });
   };
 
-  const handleSavePermissions = async() => {
+  const handleSavePermissions = async () => {
     if (selectedIndex !== null) {
       const updated = [...designations];
       updated[selectedIndex].permissions = modalPermissions;
       try {
-        await postData(`/trade/designation`, {_id: updated[selectedIndex]._id, permissions: modalPermissions,name: updated[selectedIndex].name });
-        showSuccessAlert('Success!',"Updated Successfully");
+        await postData(`/trade/designation`, { _id: updated[selectedIndex]._id, permissions: modalPermissions, name: updated[selectedIndex].name });
+        showSuccessAlert('Success!', "Updated Successfully");
         fetchdata()
         setDesignation("");
         setEditIndex(null);
         setEditValue("");
-        } catch (error) {
-          console.error("Failed to save group:", error);
-          showErrorAlert("Error", "Could not save. Please try again.");   
-        } 
+      } catch (error) {
+        console.error("Failed to save group:", error);
+        showErrorAlert("Error", "Could not save. Please try again.");
+      }
       setDesignations(updated);
     }
     setShowModal(false);

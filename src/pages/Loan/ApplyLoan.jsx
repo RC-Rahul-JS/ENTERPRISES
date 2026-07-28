@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import { CreditCard, Loader, UserCheck } from 'lucide-react';
+import { CreditCard, Loader, UserCheck, Search } from 'lucide-react';
 
 const toast = {
   success: (msg) =>
@@ -85,6 +85,16 @@ const ApplyLoan = () => {
   const [allMembers, setAllMembers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [fetchingMember, setFetchingMember] = useState(false);
+
+  // Dynamic Suggestion States (Only show suggestions after typing text, not when empty)
+  const [memberSuggestions, setMemberSuggestions] = useState([]);
+  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
+
+  const [guarantorSuggestions, setGuarantorSuggestions] = useState([]);
+  const [showGuarantorDropdown, setShowGuarantorDropdown] = useState(false);
+
+  const [introducerSuggestions, setIntroducerSuggestions] = useState([]);
+  const [showIntroducerDropdown, setShowIntroducerDropdown] = useState(false);
 
   // ── Fetch Branches, Loan Products & Members ──────────────────────────────
   useEffect(() => {
@@ -171,70 +181,212 @@ const ApplyLoan = () => {
     return { fullName, type, age: ageVal };
   };
 
-  // ── Member ID lookup ───────────────────────────────────────────────────────
-  const handleMemberIdChange = (idVal) => {
-    setMemberId(idVal);
-
-    if (!idVal || !idVal.trim()) return;
-
-    // Check pre-fetched list first
-    const match = allMembers.find((m) => {
-      const mid = String(m.memberId || m.MemberId || m._id || m.id || '').toLowerCase();
-      return mid === idVal.trim().toLowerCase();
-    });
-
-    if (match) {
-      const { fullName, type, age: ageVal } = extractMemberData(match);
-      if (fullName) setMemberName(fullName);
-      if (type) setMemberType(type);
-      if (ageVal) setAge(ageVal);
+  // ── Helper to fetch member from API: /members?memberId=... ───────────────
+  const fetchMemberFromApi = async (mid) => {
+    if (!mid || !mid.trim()) return null;
+    try {
+      const api = `${BASE}/members?memberId=${encodeURIComponent(mid.trim())}`;
+      const res = await axios.get(api);
+      if (res.data) {
+        const rawPayload = res.data.data !== undefined ? res.data.data : res.data;
+        if (!rawPayload) return null;
+        const data = Array.isArray(rawPayload) ? rawPayload[0] : rawPayload;
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          return data;
+        }
+      }
+      return null;
+    } catch (err) {
+      console.error('[ApplyLoan] Error searching member API:', err);
+      return null;
     }
   };
 
-  const handleMemberIdLookup = async (idVal) => {
-    handleMemberIdChange(idVal);
+  // ── Member ID search ───────────────────────────────────────────────────────
+  const handleMemberIdInputChange = (val) => {
+    setMemberId(val);
+    setShowMemberDropdown(false);
+    // Clear details while typing until Search is pressed
+    setMemberName('');
+    setMemberType('');
+    setAge('');
+  };
 
-    if (!idVal || idVal.trim().length < 2) return;
+  const handleSearchMember = async () => {
+    const trimmed = memberId ? memberId.trim() : '';
+
+    if (!trimmed) {
+      setMemberName('');
+      setMemberType('');
+      setAge('');
+      setShowMemberDropdown(false);
+      return toast.error('Please enter full Member ID to search');
+    }
 
     setFetchingMember(true);
+    setShowMemberDropdown(false);
+
     try {
-      const res = await axios.get(`${BASE}/get-members`);
-      let list = Array.isArray(res.data) ? res.data : res.data?.data || [];
-      const match = list.find((m) => {
-        const mid = String(m.memberId || m.MemberId || m._id || m.id || '').toLowerCase();
-        return mid === idVal.trim().toLowerCase();
-      });
+      // 1. Fetch from direct API endpoint: /members?memberId=...
+      let match = await fetchMemberFromApi(trimmed);
+
+      // 2. Fallback check in allMembers
+      if (!match && allMembers && allMembers.length > 0) {
+        match = allMembers.find((m) => {
+          const mid = String(m.memberId || m.MemberId || m._id || m.id || '').toLowerCase();
+          return mid === trimmed.toLowerCase();
+        });
+      }
 
       if (match) {
         const { fullName, type, age: ageVal } = extractMemberData(match);
-        if (fullName) setMemberName(fullName);
-        if (type) setMemberType(type);
-        if (ageVal) setAge(ageVal);
+        setMemberName(fullName || '');
+        setMemberType(type || 'Regular');
+        setAge(ageVal || '');
+        toast.success(`Member Found: ${fullName || trimmed}`);
+      } else {
+        // Do not give any details if Member ID is not matched
+        setMemberName('');
+        setMemberType('');
+        setAge('');
+        toast.error(`No member found for Member ID "${trimmed}". Please enter valid full ID.`);
       }
     } catch (err) {
-      // Ignore fallback error
+      setMemberName('');
+      setMemberType('');
+      setAge('');
+      toast.error(`Error searching Member ID "${trimmed}"`);
     } finally {
       setFetchingMember(false);
     }
   };
 
-  // ── Guarantor ID lookup ────────────────────────────────────────────────────
-  const handleGuarantorIdChange = (gIdVal) => {
-    setGuarantorId(gIdVal);
+  const selectMemberSuggestion = (m) => {
+    const mid = m.memberId || m.MemberId || m._id || m.id || '';
+    setMemberId(mid);
+    const { fullName, type, age: ageVal } = extractMemberData(m);
+    setMemberName(fullName);
+    setMemberType(type);
+    setAge(ageVal);
+    setShowMemberDropdown(false);
+  };
 
-    if (!gIdVal || !gIdVal.trim()) return;
+  // ── Guarantor ID search ────────────────────────────────────────────────────
+  const handleGuarantorIdInputChange = (val) => {
+    setGuarantorId(val);
+    setShowGuarantorDropdown(false);
+    setGuarantorName('');
+    setGuarantorType('');
+    setGuarantorAge('');
+  };
 
-    const match = allMembers.find((m) => {
-      const mid = String(m.memberId || m.MemberId || m._id || m.id || '').toLowerCase();
-      return mid === gIdVal.trim().toLowerCase();
-    });
+  const handleSearchGuarantor = async () => {
+    const trimmed = guarantorId ? guarantorId.trim() : '';
 
-    if (match) {
-      const { fullName, type, age: ageVal } = extractMemberData(match);
-      if (fullName) setGuarantorName(fullName);
-      if (type) setGuarantorType(type);
-      if (ageVal) setGuarantorAge(ageVal);
+    if (!trimmed) {
+      setGuarantorName('');
+      setGuarantorType('');
+      setGuarantorAge('');
+      setShowGuarantorDropdown(false);
+      return toast.error('Please enter full Guarantor ID to search');
     }
+
+    setFetchingMember(true);
+    setShowGuarantorDropdown(false);
+
+    try {
+      let match = await fetchMemberFromApi(trimmed);
+
+      if (!match && allMembers && allMembers.length > 0) {
+        match = allMembers.find((m) => {
+          const mid = String(m.memberId || m.MemberId || m._id || m.id || '').toLowerCase();
+          return mid === trimmed.toLowerCase();
+        });
+      }
+
+      if (match) {
+        const { fullName, type, age: ageVal } = extractMemberData(match);
+        setGuarantorName(fullName || '');
+        setGuarantorType(type || 'Regular');
+        setGuarantorAge(ageVal || '');
+        toast.success(`Guarantor Found: ${fullName || trimmed}`);
+      } else {
+        setGuarantorName('');
+        setGuarantorType('');
+        setGuarantorAge('');
+        toast.error(`No guarantor found for ID "${trimmed}". Please enter valid full ID.`);
+      }
+    } catch (err) {
+      setGuarantorName('');
+      setGuarantorType('');
+      setGuarantorAge('');
+      toast.error(`Error searching Guarantor ID "${trimmed}"`);
+    } finally {
+      setFetchingMember(false);
+    }
+  };
+
+  const selectGuarantorSuggestion = (m) => {
+    const mid = m.memberId || m.MemberId || m._id || m.id || '';
+    setGuarantorId(mid);
+    const { fullName, type, age: ageVal } = extractMemberData(m);
+    setGuarantorName(fullName);
+    setGuarantorType(type);
+    setGuarantorAge(ageVal);
+    setShowGuarantorDropdown(false);
+  };
+
+  // ── Introducer search ──────────────────────────────────────────────────────
+  const handleIntroducerInputChange = (val) => {
+    setIntroducer(val);
+    setShowIntroducerDropdown(false);
+    setIntroducerName('');
+  };
+
+  const handleSearchIntroducer = async () => {
+    const trimmed = introducer ? introducer.trim() : '';
+
+    if (!trimmed) {
+      setIntroducerName('');
+      setShowIntroducerDropdown(false);
+      return toast.error('Please enter full Introducer ID to search');
+    }
+
+    setFetchingMember(true);
+    setShowIntroducerDropdown(false);
+
+    try {
+      let match = await fetchMemberFromApi(trimmed);
+
+      if (!match && allMembers && allMembers.length > 0) {
+        match = allMembers.find((m) => {
+          const mid = String(m.memberId || m.MemberId || m._id || m.id || '').toLowerCase();
+          return mid === trimmed.toLowerCase();
+        });
+      }
+
+      if (match) {
+        const { fullName } = extractMemberData(match);
+        setIntroducerName(fullName || '');
+        toast.success(`Introducer Found: ${fullName || trimmed}`);
+      } else {
+        setIntroducerName('');
+        toast.error(`No introducer found for ID "${trimmed}". Please enter valid full ID.`);
+      }
+    } catch (err) {
+      setIntroducerName('');
+      toast.error(`Error searching Introducer ID "${trimmed}"`);
+    } finally {
+      setFetchingMember(false);
+    }
+  };
+
+  const selectIntroducerSuggestion = (m) => {
+    const mid = m.memberId || m.MemberId || m._id || m.id || '';
+    setIntroducer(mid);
+    const { fullName } = extractMemberData(m);
+    setIntroducerName(fullName);
+    setShowIntroducerDropdown(false);
   };
 
   // ── Handle Form Submission ──────────────────────────────────────────────────
@@ -310,7 +462,7 @@ const ApplyLoan = () => {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 bg-slate-50">
-      <div className="max-w-7xl mx-auto shadow-sm rounded-lg overflow-hidden border border-gray-200 bg-white">
+      <div className="max-w-7xl mx-auto shadow-sm rounded-lg border border-gray-200 bg-white">
         <form onSubmit={handleSubmit} className="space-y-0">
           {/* ── Banner 1: APPLY LOAN ────────────────────────────────────────── */}
           <div className="bg-[#3B3C6E] text-white px-4 py-2.5 font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between">
@@ -420,24 +572,65 @@ const ApplyLoan = () => {
             </div>
 
             {/* ── Banner 2: Member Details ──────────────────────────────────── */}
-            <div className="rounded overflow-hidden">
+            <div className="rounded border border-gray-200">
               <SectionBanner title="Member Details" />
-              <div className="p-4 bg-white border-x border-b border-gray-200">
+              <div className="p-4 bg-white">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-gray-700">Member Id</label>
                       {fetchingMember && <Loader className="w-3 h-3 animate-spin text-indigo-600" />}
                     </div>
-                    <input
-                      type="text"
-                      list="members-list"
-                      value={memberId}
-                      onChange={(e) => handleMemberIdLookup(e.target.value)}
-                      onBlur={(e) => handleMemberIdLookup(e.target.value)}
-                      placeholder="Member ID"
-                      className={inputCls}
-                    />
+                    <div className="relative flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={memberId}
+                        onChange={(e) => handleMemberIdInputChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSearchMember();
+                          }
+                        }}
+                        onBlur={() => {
+                          setTimeout(() => setShowMemberDropdown(false), 200);
+                        }}
+                        placeholder="Enter Member ID"
+                        className={inputCls}
+                      />
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={handleSearchMember}
+                        className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
+                        title="Search Member"
+                      >
+                        <Search className="w-3.5 h-3.5" />
+                        <span>Search</span>
+                      </button>
+
+                      {showMemberDropdown && memberSuggestions.length > 0 && (
+                        <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-xl max-h-56 overflow-y-auto text-xs divide-y divide-gray-100 ring-1 ring-black/5">
+                          {memberSuggestions.map((m, idx) => {
+                            const mid = m.memberId || m.MemberId || m._id || m.id || '';
+                            const { fullName, type } = extractMemberData(m);
+                            return (
+                              <li
+                                key={mid || idx}
+                                onMouseDown={() => selectMemberSuggestion(m)}
+                                className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition"
+                              >
+                                <div>
+                                  <span className="font-bold text-indigo-900">{mid}</span>
+                                  {fullName && <span className="ml-2 text-gray-700">({fullName})</span>}
+                                </div>
+                                {type && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">{type}</span>}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
                   </div>
 
                   <div>
@@ -477,9 +670,9 @@ const ApplyLoan = () => {
             </div>
 
             {/* ── Banner 3: Guarantor / Co-Applicant Details ───────────────── */}
-            <div className="rounded overflow-hidden">
+            <div className="rounded border border-gray-200">
               <SectionBanner title="Gurantor / Co-Applicant Details" />
-              <div className="p-4 bg-white border-x border-b border-gray-200">
+              <div className="p-4 bg-white">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                   <div>
                     <label className={labelCls}>Select</label>
@@ -497,31 +690,57 @@ const ApplyLoan = () => {
 
                   <div>
                     <label className={labelCls}>Gurantor Id</label>
-                    <input
-                      type="text"
-                      list="members-list"
-                      value={guarantorId}
-                      onChange={(e) => handleGuarantorIdChange(e.target.value)}
-                      onBlur={(e) => handleGuarantorIdChange(e.target.value)}
-                      placeholder="Gurantor ID"
-                      className={inputCls}
-                    />
-                  </div>
+                    <div className="relative flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={guarantorId}
+                        onChange={(e) => handleGuarantorIdInputChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSearchGuarantor();
+                          }
+                        }}
+                        onBlur={() => {
+                          setTimeout(() => setShowGuarantorDropdown(false), 200);
+                        }}
+                        placeholder="Enter Gurantor ID"
+                        className={inputCls}
+                      />
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={handleSearchGuarantor}
+                        className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
+                        title="Search Guarantor"
+                      >
+                        <Search className="w-3.5 h-3.5" />
+                        <span>Search</span>
+                      </button>
 
-                  {/* Datalist for Member & Guarantor ID Autocomplete */}
-                  <datalist id="members-list">
-                    {allMembers.map((m, idx) => {
-                      const mId = m.memberId || m.MemberId || m._id || m.id;
-                      const fn = m.FirstName || m.firstname || m.first_name || '';
-                      const ln = m.LastName || m.lastname || m.last_name || '';
-                      const name = `${fn} ${ln}`.trim() || m.name || m.memberName || '';
-                      return (
-                        <option key={mId || idx} value={mId}>
-                          {name ? `${mId} - ${name}` : mId}
-                        </option>
-                      );
-                    })}
-                  </datalist>
+                      {showGuarantorDropdown && guarantorSuggestions.length > 0 && (
+                        <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-xl max-h-56 overflow-y-auto text-xs divide-y divide-gray-100 ring-1 ring-black/5">
+                          {guarantorSuggestions.map((m, idx) => {
+                            const mid = m.memberId || m.MemberId || m._id || m.id || '';
+                            const { fullName, type } = extractMemberData(m);
+                            return (
+                              <li
+                                key={mid || idx}
+                                onMouseDown={() => selectGuarantorSuggestion(m)}
+                                className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition"
+                              >
+                                <div>
+                                  <span className="font-bold text-indigo-900">{mid}</span>
+                                  {fullName && <span className="ml-2 text-gray-700">({fullName})</span>}
+                                </div>
+                                {type && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">{type}</span>}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
 
                   <div>
                     <label className={labelCls}>Gurantor Name</label>
@@ -657,19 +876,61 @@ const ApplyLoan = () => {
             </div>
 
             {/* ── Banner 5: Introducer Details ─────────────────────────────── */}
-            <div className="rounded overflow-hidden">
+            <div className="rounded border border-gray-200">
               <SectionBanner title="Introducer Details" />
-              <div className="p-4 bg-white border-x border-b border-gray-200">
+              <div className="p-4 bg-white">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                   <div>
                     <label className={labelCls}>Introducer</label>
-                    <input
-                      type="text"
-                      value={introducer}
-                      onChange={(e) => setIntroducer(e.target.value)}
-                      placeholder="Introducer"
-                      className={inputCls}
-                    />
+                    <div className="relative flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={introducer}
+                        onChange={(e) => handleIntroducerInputChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSearchIntroducer();
+                          }
+                        }}
+                        onBlur={() => {
+                          setTimeout(() => setShowIntroducerDropdown(false), 200);
+                        }}
+                        placeholder="Enter Introducer ID"
+                        className={inputCls}
+                      />
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={handleSearchIntroducer}
+                        className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
+                        title="Search Introducer"
+                      >
+                        <Search className="w-3.5 h-3.5" />
+                        <span>Search</span>
+                      </button>
+
+                      {showIntroducerDropdown && introducerSuggestions.length > 0 && (
+                        <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-xl max-h-56 overflow-y-auto text-xs divide-y divide-gray-100 ring-1 ring-black/5">
+                          {introducerSuggestions.map((m, idx) => {
+                            const mid = m.memberId || m.MemberId || m._id || m.id || '';
+                            const { fullName } = extractMemberData(m);
+                            return (
+                              <li
+                                key={mid || idx}
+                                onMouseDown={() => selectIntroducerSuggestion(m)}
+                                className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition"
+                              >
+                                <div>
+                                  <span className="font-bold text-indigo-900">{mid}</span>
+                                  {fullName && <span className="ml-2 text-gray-700">({fullName})</span>}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
                   </div>
 
                   <div>

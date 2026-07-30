@@ -46,10 +46,10 @@ const MemberApplicationForm = () => {
   const [aadharVerified, setAadharVerified] = useState(false);
   const [aadharChecking, setAadharChecking] = useState(false);
   const [aadharStatus, setAadharStatus] = useState(null); // 'ok' | 'duplicate' | null
-  
+
   const loaderCtx = useLoader();
-  const showLoader = loaderCtx?.showLoader || (() => {});
-  const hideLoader = loaderCtx?.hideLoader || (() => {});
+  const showLoader = loaderCtx?.showLoader || (() => { });
+  const hideLoader = loaderCtx?.hideLoader || (() => { });
 
   const initialFormData = {
     branchname: '',
@@ -349,7 +349,7 @@ const MemberApplicationForm = () => {
 
     const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
     const api = `${localprimeBase}/create-member-request`;
-
+    console.log(formDataPayload)
     try {
       const res = await axios.post(api, formDataPayload, {
         headers: {

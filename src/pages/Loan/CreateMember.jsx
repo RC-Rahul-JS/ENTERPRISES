@@ -41,8 +41,11 @@ const MemberApplicationForm = () => {
   }, []);
 
   const [tab, settab] = useState(1);
-  const [OtpShow, setOtpShow] = useState(false);
+  // const [OtpShow, setOtpShow] = useState(false); // commented out: OTP flow disabled
   const [loader, setloader] = useState(false);
+  const [aadharVerified, setAadharVerified] = useState(false);
+  const [aadharChecking, setAadharChecking] = useState(false);
+  const [aadharStatus, setAadharStatus] = useState(null); // 'ok' | 'duplicate' | null
   
   const loaderCtx = useLoader();
   const showLoader = loaderCtx?.showLoader || (() => {});
@@ -132,75 +135,94 @@ const MemberApplicationForm = () => {
     }
   };
 
-  const aadharverification = async () => {
-    if (formdata.aadharnumber.length !== 12) {
-      toast.error('Invalid Aadhaar Number');
-      return;
-    }
-
-    showLoader();
-
-    try {
-      const aadharOtpBase = import.meta.env.VITE_AADHAR_OTP_URL || 'https://apipoultry.duniyape.in/api/aadhar';
-      const res = await axios.post(`${aadharOtpBase}/send-otp`, {
-        uid: formdata.aadharnumber,
-      });
-
-      console.log(res.data);
-
-      const transactionId = res.data?.data?.sessionId;
-      setformdata({ ...formdata, aadhartxn: transactionId });
-      setOtpShow(true);
-
-      toast.success(res.data?.data?.message || 'OTP sent successfully');
-    } catch (error) {
-      console.error(error);
-      toast.error(error?.response?.data?.message || 'Server Error');
-    } finally {
-      hideLoader();
-    }
-  };
+  // ── AADHAAR OTP API (commented out — re-enable when OTP service is active) ──────
+  // const aadharverification = async () => {
+  //   if (formdata.aadharnumber.length !== 12) {
+  //     toast.error('Invalid Aadhaar Number');
+  //     return;
+  //   }
+  //   showLoader();
+  //   try {
+  //     const aadharOtpBase = import.meta.env.VITE_AADHAR_OTP_URL || 'https://apipoultry.duniyape.in/api/aadhar';
+  //     const res = await axios.post(`${aadharOtpBase}/send-otp`, { uid: formdata.aadharnumber });
+  //     console.log(res.data);
+  //     const transactionId = res.data?.data?.sessionId;
+  //     setformdata({ ...formdata, aadhartxn: transactionId });
+  //     setOtpShow(true);
+  //     toast.success(res.data?.data?.message || 'OTP sent successfully');
+  //   } catch (error) {
+  //     console.error(error);
+  //     toast.error(error?.response?.data?.message || 'Server Error');
+  //   } finally {
+  //     hideLoader();
+  //   }
+  // };
 
   const [Otp, setOtp] = useState('');
 
-  const aadharOTPsent = async () => {
-    if (!formdata.aadhartxn || Otp.length !== 6) {
-      toast.error('Invalid OTP');
+  // ── AADHAAR OTP VERIFY API (commented out — re-enable when OTP service is active) ─
+  // const aadharOTPsent = async () => {
+  //   if (!formdata.aadhartxn || Otp.length !== 6) {
+  //     toast.error('Invalid OTP');
+  //     return;
+  //   }
+  //   showLoader();
+  //   try {
+  //     const aadharOtpBase = import.meta.env.VITE_AADHAR_OTP_URL || 'https://apipoultry.duniyape.in/api/aadhar';
+  //     const res = await axios.post(`${aadharOtpBase}/verify-otp`, { otp: Otp, sessionId: formdata.aadhartxn });
+  //     const data = res.data;
+  //     console.log(data);
+  //     if (data?.success === false) { toast.error(data.message || 'OTP verification failed'); return; }
+  //     setaadhardata(data?.data);
+  //     setOtpShow(false);
+  //     toast.success('Aadhaar verified successfully');
+  //   } catch (error) {
+  //     console.error(error);
+  //     if (error.response) { toast.error(error.response.data?.message || 'API Error'); }
+  //     else if (error.request) { toast.error('Server not reachable'); }
+  //     else { toast.error('Something went wrong'); }
+  //   } finally {
+  //     hideLoader();
+  //   }
+  // };
+
+  // ── Manual Aadhaar DB Check (active) ───────────────────────────────────────
+  const checkAadharExists = async () => {
+    const num = formdata.aadharnumber.trim();
+    if (num.length !== 12 || !/^\d{12}$/.test(num)) {
+      toast.error('Please enter a valid 12-digit Aadhaar number');
       return;
     }
-
-    showLoader();
-
+    setAadharChecking(true);
+    setAadharStatus(null);
+    setAadharVerified(false);
     try {
-      const aadharOtpBase = import.meta.env.VITE_AADHAR_OTP_URL || 'https://apipoultry.duniyape.in/api/aadhar';
-      const res = await axios.post(`${aadharOtpBase}/verify-otp`, {
-        otp: Otp,
-        sessionId: formdata.aadhartxn,
-      });
+      const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
+      const res = await axios.get(`${localprimeBase}/get-members`);
+      let rawList = [];
+      if (Array.isArray(res.data)) rawList = res.data;
+      else if (Array.isArray(res.data?.data)) rawList = res.data.data;
+      else if (res.data?.data && typeof res.data.data === 'object') rawList = [res.data.data];
 
-      const data = res.data;
-      console.log(data);
+      // Check if any existing member has this Aadhaar number
+      const duplicate = rawList.find(
+        (m) => String(m.Aadhar || m.aadhaar || m.aadhar || '').trim() === num
+      );
 
-      if (data?.success === false) {
-        toast.error(data.message || 'OTP verification failed');
-        return;
-      }
-
-      setaadhardata(data?.data);
-      setOtpShow(false);
-      toast.success('Aadhaar verified successfully');
-    } catch (error) {
-      console.error(error);
-
-      if (error.response) {
-        toast.error(error.response.data?.message || 'API Error');
-      } else if (error.request) {
-        toast.error('Server not reachable');
+      if (duplicate) {
+        setAadharStatus('duplicate');
+        setAadharVerified(false);
+        toast.error('This Aadhaar number is already registered in the system.');
       } else {
-        toast.error('Something went wrong');
+        setAadharStatus('ok');
+        setAadharVerified(true);
+        toast.success('Aadhaar number is unique. You can proceed.');
       }
+    } catch (error) {
+      console.error('[CreateMember] Aadhaar check error:', error);
+      toast.error(error?.response?.data?.message || 'Failed to verify Aadhaar. Please try again.');
     } finally {
-      hideLoader();
+      setAadharChecking(false);
     }
   };
 
@@ -244,7 +266,7 @@ const MemberApplicationForm = () => {
     formDataPayload.append('BranchName', formdata.branchname || '');
     formDataPayload.append('BranchCode', formdata.branch || '');
     formDataPayload.append('ReceiptDate', moment(new Date()).format('yyyy-MM-DD'));
-    formDataPayload.append('MemberCategory', 'Ordinary');
+    formDataPayload.append('MemberCategory', formdata.membertype || 'Ordinary');
     formDataPayload.append('Title', formdata.title || '');
     formDataPayload.append('FirstName', formdata.firstname || '');
     formDataPayload.append('LastName', formdata.lastname || '');
@@ -352,50 +374,89 @@ const MemberApplicationForm = () => {
     }
   };
 
+  // Fetch introducer details — only approved (get-members) members can be introducers
   const getformdata = async (targetMid) => {
-    const mid = targetMid || formdata.introducerid;
-    if (!mid || mid.trim().length < 4) return;
+    const mid = (targetMid || formdata.introducerid || '').trim();
+    if (!mid || mid.length < 4) return;
     showLoader();
     const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
-    const api = `${localprimeBase}/members?memberId=${mid.trim()}`;
     try {
-      const res = await axios.get(api);
-      console.log('Fetched Member Data:', res.data);
-      if (res.data) {
-        const rawPayload = res.data.data ? res.data.data : res.data;
-        const data = Array.isArray(rawPayload) ? rawPayload[0] : rawPayload;
+      // Fetch from get-members (approved members only) — only approved members can introduce new members
+      const res = await axios.get(`${localprimeBase}/get-members`);
+      let rawList = [];
+      if (Array.isArray(res.data)) rawList = res.data;
+      else if (Array.isArray(res.data?.data)) rawList = res.data.data;
+      else if (res.data?.data && typeof res.data.data === 'object') rawList = [res.data.data];
 
-        const firstName = data.FirstName || data.firstname || data.first_name || '';
-        const lastName = data.LastName || data.lastname || data.last_name || '';
+      console.log('[CreateMember] Looking for introducer ID:', mid, 'in', rawList.length, 'approved members');
 
-        let name = data.MemberName || data.memberName || data.name || data.Name || '';
-        if (!name && (firstName || lastName)) {
-          name = `${firstName} ${lastName}`.trim();
+      // Match by memberId (lowercase), member_id, MemberNo, or smart-scan for padded IDs
+      const search = mid.toLowerCase();
+      const data = rawList.find((m) => {
+        // Try all known ID fields
+        const ids = [
+          m.memberId, m.member_id, m.MemberNo, m.memberNo, m.member_no,
+          m.MemberCode, m.memberCode, m._id,
+        ].map((v) => String(v || '').toLowerCase().trim());
+        if (ids.some((id) => id === search)) return true;
+
+        // Smart scan: look for padded-number fields matching the search
+        // EXCLUDE memberid (case-insensitive) — that's the INTRODUCER's ID, not the member's own
+        for (const [k, v] of Object.entries(m)) {
+          const lk = k.toLowerCase();
+          if (lk === 'memberid') continue; // skip introducer ID field
+          if (typeof v === 'string' && /^0\d{4,11}$/.test(v.trim()) && v.trim().toLowerCase() === search) {
+            return true;
+          }
         }
+        return false;
+      });
 
-        const branchCode = data.BranchCode || data.branchCode || '001';
-        const branchName = data.BranchName || data.branchName || '';
-
-        setformdata((prev) => ({
-          ...prev,
-          introducername: name,
-          branch: branchCode,
-          branchname: branchName,
-        }));
-      } else {
-        setformdata((prev) => ({ ...prev, introducername: '' }));
+      if (!data) {
+        // Not found in approved members
+        toast.error(`Member ID "${mid}" not found or not yet approved. Only approved members can be introducers.`);
+        setformdata((prev) => ({ ...prev, introducername: '', branch: '', branchname: '' }));
+        return;
       }
+
+      // Verify this member is approved/active
+      const memberStatus = (data.status || data.Status || '').toLowerCase();
+      if (memberStatus === 'pending' || memberStatus === 'rejected') {
+        toast.error(`Member ID "${mid}" is ${memberStatus}. Only approved members can be introducers.`);
+        setformdata((prev) => ({ ...prev, introducername: '', branch: '', branchname: '' }));
+        return;
+      }
+
+      // ⚠️  IMPORTANT: MemberName = INTRODUCER's name (not this member's own name)
+      // Always use FirstName + LastName for the member's own name.
+      const firstName = data.FirstName || data.firstname || data.first_name || '';
+      const lastName = data.LastName || data.lastname || data.last_name || '';
+      const name = `${firstName} ${lastName}`.trim() || mid;
+
+      const branchCode = data.BranchCode || data.branchCode || '001';
+      const branchName = data.BranchName || data.branchName || '';
+
+      setformdata((prev) => ({
+        ...prev,
+        introducername: name,
+        branch: branchCode,
+        branchname: branchName,
+      }));
+
+      toast.success(`Introducer found: ${name}`);
     } catch (error) {
       if (error.response && error.response.status === 404) {
         console.warn(`Member ID "${mid}" not found.`);
         setformdata((prev) => ({ ...prev, introducername: '' }));
       } else {
         console.error('Error fetching member data:', error);
+        toast.error('Failed to fetch member details. Please try again.');
       }
     } finally {
       hideLoader();
     }
   };
+
 
   useEffect(() => {
     const cleanId = (formdata.introducerid || '').trim();
@@ -409,6 +470,11 @@ const MemberApplicationForm = () => {
 
   const handleNext = (e) => {
     e.preventDefault();
+    // For tab 1, require Aadhaar to be verified (not a duplicate)
+    if (tab === 1 && !aadharVerified) {
+      toast.error('Please verify your Aadhaar number before proceeding.');
+      return;
+    }
     console.log('Proceed to next step:');
     settab((prev) => prev + 1);
   };
@@ -571,39 +637,107 @@ const MemberApplicationForm = () => {
 
       {tab === 1 && (
         <form onSubmit={handleNext}>
-          {/* Aadhaar Section */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={labelStyle}>Aadhaar No.</label>
-            <input
-              required
-              value={formdata.aadharnumber}
-              onChange={(e) => setformdata({ ...formdata, aadharnumber: e.target.value })}
-              type="number"
-              placeholder="Enter Aadhaar No."
-              style={inputStyle}
-            />
+          {/* ── Aadhaar Section (Manual Check Mode) ─────────────────────── */}
+          <div style={{ marginBottom: '12px' }}>
+            <label style={labelStyle}>Aadhaar No. <span style={{ color: 'red' }}>*</span></label>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <input
+                required
+                value={formdata.aadharnumber}
+                onChange={(e) => {
+                  setformdata({ ...formdata, aadharnumber: e.target.value });
+                  // Reset verification status when user edits the number
+                  setAadharVerified(false);
+                  setAadharStatus(null);
+                }}
+                type="text"
+                maxLength={12}
+                inputMode="numeric"
+                pattern="\d{12}"
+                placeholder="Enter 12-digit Aadhaar No."
+                style={{ ...inputStyle, flex: 1, letterSpacing: '2px' }}
+              />
+              <button
+                type="button"
+                onClick={checkAadharExists}
+                disabled={aadharChecking || formdata.aadharnumber.length !== 12}
+                style={{
+                  ...buttonStyle,
+                  width: 'auto',
+                  marginBottom: 0,
+                  padding: '0 18px',
+                  opacity: (aadharChecking || formdata.aadharnumber.length !== 12) ? 0.6 : 1,
+                  cursor: (aadharChecking || formdata.aadharnumber.length !== 12) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {aadharChecking ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: 12 }} />
+                    Checking...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-shield-halved" style={{ fontSize: 12 }} />
+                    Verify Aadhaar
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* ── Aadhaar Status Banner ─────────────────────────────── */}
+            {aadharStatus === 'ok' && (
+              <div style={{
+                marginTop: 10,
+                padding: '10px 14px',
+                borderRadius: 8,
+                background: '#d1fae5',
+                border: '1px solid #6ee7b7',
+                color: '#065f46',
+                fontSize: 12,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}>
+                <i className="fa-solid fa-circle-check" style={{ fontSize: 14, color: '#059669' }} />
+                Aadhaar verified — this number is not registered in the system. You may proceed.
+              </div>
+            )}
+            {aadharStatus === 'duplicate' && (
+              <div style={{
+                marginTop: 10,
+                padding: '10px 14px',
+                borderRadius: 8,
+                background: '#fee2e2',
+                border: '1px solid #fca5a5',
+                color: '#991b1b',
+                fontSize: 12,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}>
+                <i className="fa-solid fa-circle-xmark" style={{ fontSize: 14, color: '#dc2626' }} />
+                This Aadhaar number is already registered. Please use a different Aadhaar.
+              </div>
+            )}
           </div>
-          <button type="button" onClick={() => aadharverification()} style={buttonStyle}>
-            Get OTP
-          </button>
-          {OtpShow && (
+
+          {/* ── Commented-out OTP flow — re-enable when OTP API is active ── */}
+          {/* <button type="button" onClick={() => aadharverification()} style={buttonStyle}>Get OTP</button> */}
+          {/* {OtpShow && (
             <>
               <div style={{ marginBottom: '16px' }}>
                 <label style={labelStyle}>OTP</label>
-                <input
-                  required
-                  value={Otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  type="number"
-                  placeholder="Enter Here"
-                  style={inputStyle}
-                />
+                <input required value={Otp} onChange={(e) => setOtp(e.target.value)}
+                  type="number" placeholder="Enter Here" style={inputStyle} />
               </div>
-              <button type="button" onClick={() => aadharOTPsent()} style={buttonStyle}>
-                Verify
-              </button>
+              <button type="button" onClick={() => aadharOTPsent()} style={buttonStyle}>Verify</button>
             </>
-          )}
+          )} */}
 
           {/* Form Fields */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: 16 }}>
@@ -630,7 +764,7 @@ const MemberApplicationForm = () => {
                 label: 'Member Type',
                 type: 'select',
                 name: 'membertype',
-                options: ['Agent', 'Regular', 'Associate', 'Senior'],
+                options: ['Ordinary', 'Agent', 'Regular', 'Associate', 'Senior'],
               },
               { label: 'Mobile', name: 'mobile', type: 'tel' },
               { label: 'Email', name: 'email', type: 'email' },

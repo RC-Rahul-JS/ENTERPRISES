@@ -50,21 +50,83 @@ const MemberList = () => {
         rawList = [res.data];
       }
 
+      // 🔍 Debug: log first record's keys to confirm field names from API
+      if (rawList.length > 0) {
+        console.log('[MemberList] API field keys (first record):', Object.keys(rawList[0]));
+        console.log('[MemberList] First record sample:', rawList[0]);
+      }
+
       // Normalize data fields strictly from API
       const normalized = rawList
         .filter((item) => {
-          const s = (
-            item.Status ||
-            item.status ||
-            item.request_status ||
-            item.approval_status ||
-            item.member_status ||
+          // ⚠️  The API sends TWO status fields:
+          //   item.status  (lowercase) = actual approval/request status → "pending", "approved", "rejected"
+          //   item.Status  (uppercase) = always "Active" (hardcoded by the form submit)
+          // We MUST check lowercase status FIRST — it's the authoritative approval flag.
+          // Checking Status first caused pending members to slip through (Status:"Active" always passes).
+          const approvalStatus = (
+            item.status            ||   // ← real approval status (check FIRST!)
+            item.request_status    ||
+            item.approval_status   ||
+            item.member_status     ||
+            item.Status            ||   // ← fallback: uppercase (only if lowercase missing)
             ''
           ).toLowerCase();
-          return s !== 'rejected' && s !== 'pending';
+          // Only show members explicitly approved/active
+          return ['approved', 'active', 'accepted', 'verified'].includes(approvalStatus);
         })
         .map((item, idx) => {
-        const id = item.memberId || item.MemberId || item._id || `MEM-${1000 + idx}`;
+        // ── Resolve the member's OWN sequential ID ────────────────────────────────
+        // From API data confirmed:
+        //   MemberId (capital M) = INTRODUCER's member ID  ← do NOT use for own ID
+        //   MemberName           = INTRODUCER's name
+        //   The member's own generated ID lives in memberId (lowercase) or member_id,
+        //   assigned by the backend only after the request is approved.
+        //
+        // Step 1: try known exact field names (never MemberId — that's the introducer)
+        let id =
+          item.memberId       ||   // own ID lowercase (set by backend on approval)
+          item.member_id      ||   // snake_case variant
+          item.MemberNo       ||   // alternative backend field name
+          item.memberNo       ||
+          item.member_no      ||
+          item.MemberCode     ||
+          item.memberCode     ||
+          item.member_code    ||
+          '';
+
+        // Step 2: if still empty, scan ALL string fields for a value that looks like
+        // a zero-padded member number (e.g. "0010001", "0010004") — 5 to 12 digits, starts with 0
+        if (!id) {
+          const paddedNumRe = /^0\d{4,11}$/;   // e.g. 0010001
+          for (const [k, v] of Object.entries(item)) {
+            const lk = k.toLowerCase();
+            // Skip the introducer's MemberId field and non-ID fields
+            if (lk === 'memberid' || lk.includes('name') || lk.includes('address') ||
+                lk.includes('phone') || lk.includes('email') || lk.includes('status') ||
+                lk.includes('date') || lk.includes('created') || lk.includes('upload') ||
+                lk.includes('kyc') || lk.includes('nom') || lk.includes('gur')) continue;
+            if (typeof v === 'string' && paddedNumRe.test(v.trim())) {
+              id = v.trim();
+              console.log('[MemberList] Smart scan found ID in field "' + k + '":', id);
+              break;
+            }
+          }
+        }
+
+        // Step 3: fall back to MongoDB _id
+        if (!id) id = item._id || `MEM-${1000 + idx}`;
+
+        console.log('[MemberList] row', idx, '→ resolved id:', id,
+          '| memberId:', item.memberId, '| member_id:', item.member_id,
+          '| MemberNo:', item.MemberNo, '| id:', item.id, '| _id:', item._id);
+
+        // displayId — if id is a raw MongoDB ObjectId (24-char hex), show MEM-000N instead
+        const isMongoId = /^[a-f\d]{24}$/i.test(String(id));
+        const displayId = isMongoId
+          ? `MEM-${String(idx + 1).padStart(4, '0')}`
+          : String(id);
+
         const firstName = item.FirstName || item.firstname || item.first_name || '';
         const lastName = item.LastName || item.lastname || item.last_name || '';
         
@@ -76,6 +138,8 @@ const MemberList = () => {
         const state = item.State || item.state || '';
         const address = item.PermanentAdd || item.address || '';
         const aadhaar = item.Aadhar || item.aadhaar || '';
+        // Use uppercase Status as the display status for approved members
+        // (lowercase status = approval flag; once approved, Status = 'Active' is the account status)
         const status = item.Status || item.status || 'Active';
         const gender = item.Gender || item.gender || 'N/A';
         const fatherName = item.FatherName || item.fathername || '';
@@ -84,8 +148,9 @@ const MemberList = () => {
 
         return {
           raw: item,
-          id,
-          memberName: name || id,
+          id,          // internal: real value used for API calls & lookups
+          displayId,   // display: human-readable label shown to user
+          memberName: name || displayId,
           firstName,
           lastName,
           fatherSpouseName: fatherName,
@@ -99,6 +164,8 @@ const MemberList = () => {
           category,
           occupation,
           status,
+          // Member Type: from MemberCategory (API) or membertype (form field)
+          memberType: item.MemberCategory || item.memberCategory || item.membertype || item.MemberType || item.member_type || 'Ordinary',
           createdAt: item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A',
         };
       });
@@ -122,7 +189,8 @@ const MemberList = () => {
     setEditingMember(member);
     const r = member.raw || {};
     setEditFormData({
-      id: r.memberId || r.MemberId || member.id,
+      // ✅ Bug 3 fix: member's own ID — same priority as the map() above
+      id: r.memberId || r.member_id || r.MemberCode || r.memberCode || member.id,
 
       // Personal
       branchname: r.BranchName || '',
@@ -214,7 +282,8 @@ const MemberList = () => {
     setSavingEdit(true);
 
     const mongoId = editingMember?.raw?._id || editingMember?.id;
-    const memberId = editFormData.id || editingMember?.raw?.memberId || editingMember?.raw?.MemberId || editingMember?.id;
+    // ✅ Bug 3 fix: use member's own ID field, NOT MemberId (which is the introducer's ID)
+    const memberId = editFormData.id || editingMember?.raw?.memberId || editingMember?.raw?.member_id || editingMember?.raw?.MemberCode || editingMember?.id;
     const orig = editingMember?.raw || {};
 
     const fieldMapping = {
@@ -515,6 +584,7 @@ const MemberList = () => {
                 <tr className="bg-gray-50/70 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
                   <th className="py-3.5 px-4">Member ID</th>
                   <th className="py-3.5 px-4">Member Name</th>
+                  <th className="py-3.5 px-4">Member Type</th>
                   <th className="py-3.5 px-4">Phone</th>
                   <th className="py-3.5 px-4">City / State</th>
                   <th className="py-3.5 px-4">Created Date</th>
@@ -524,7 +594,7 @@ const MemberList = () => {
               <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                 {filteredMembers.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="text-center py-10 text-gray-400">
+                    <td colSpan="7" className="text-center py-10 text-gray-400">
                       No members found.
                     </td>
                   </tr>
@@ -532,13 +602,25 @@ const MemberList = () => {
                   filteredMembers.map((member) => (
                     <tr key={member.id} className="hover:bg-purple-50/30 transition">
                       <td className="py-3.5 px-4 font-semibold text-purple-700 text-xs">
-                        {member.id}
+                        {member.displayId}
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-gray-900">{member.memberName}</div>
                         {member.fatherSpouseName && (
                           <div className="text-xs text-gray-400">S/O, W/O: {member.fatherSpouseName}</div>
                         )}
+                      </td>
+                      {/* Member Type column */}
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                          (member.memberType || '').toLowerCase() === 'agent'     ? 'bg-purple-100 text-purple-700' :
+                          (member.memberType || '').toLowerCase() === 'regular'   ? 'bg-emerald-100 text-emerald-700' :
+                          (member.memberType || '').toLowerCase() === 'associate' ? 'bg-amber-100 text-amber-700' :
+                          (member.memberType || '').toLowerCase() === 'senior'    ? 'bg-indigo-100 text-indigo-700' :
+                          'bg-blue-100 text-blue-700'  /* Ordinary / default */
+                        }`}>
+                          {member.memberType || 'Ordinary'}
+                        </span>
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="text-xs font-medium text-gray-700 flex items-center gap-1">
@@ -635,7 +717,7 @@ const MemberList = () => {
                 </div>
                 <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-3">
                   <span>
-                    Member ID: <strong className="text-purple-700 font-mono">{selectedMember.id}</strong>
+                    Member ID: <strong className="text-purple-700 font-mono">{selectedMember.displayId}</strong>
                   </span>
                   <span>•</span>
                   <span>

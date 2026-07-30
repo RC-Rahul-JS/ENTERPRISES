@@ -152,10 +152,10 @@ const MemberRequests = () => {
           (item.is_approved ? 'approved' : '') ||
           (item.approved ? 'approved' : '') ||
           '';
-        // Normalise to lowercase string
         const status = rawStatus.toString().toLowerCase();
         return {
           raw: item, id,
+          serialNo: `REQ-${String(idx + 1).padStart(3, '0')}`, // human-readable display id
           memberName: name, firstName, lastName,
           phone: item.MobileNo || item.phone || item.mobile || 'N/A',
           email: item.Email || item.email || '',
@@ -169,7 +169,7 @@ const MemberRequests = () => {
           category: item.Category || item.category || '',
           occupation: item.Occupation || item.occupation || '',
           createdAt: item.created_at
-            ? new Date(item.created_at).toLocaleDateString()
+            ? new Date(item.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
             : item.ReceiptDate || 'N/A',
         };
       });
@@ -189,60 +189,91 @@ const MemberRequests = () => {
   const getReqId = (req) =>
     req?.raw?.request_id || req?.raw?.requestId || req?.raw?._id || req?.id;
 
-  // API only accepts 'approved' or 'rejected' (lowercase)
-  // Send as FormData so Flask's data.get('status') / request.form.get('status') works
+  // API only accepts 'approved' or 'rejected' (lowercase, exact match)
   const handleStatusUpdate = async (requestItem, newStatus) => {
     const requestId = getReqId(requestItem);
+    if (!requestId) return toast.error('Cannot resolve request ID');
     setUpdatingStatus(requestId);
+
+    const url = `${BASE_URL}/update-member-request/${requestId}`;
+
+    // Only treat as already-done when message says "already approved" or "already rejected"
+    // Do NOT treat "Request already None" as success — that's a real error state.
+    const isAlreadyDone = (msg = '') => {
+      const m = msg.toLowerCase();
+      return (
+        (m.includes('already') && (m.includes('approved') || m.includes('rejected'))) ||
+        (m.includes('success') && !m.includes('none'))
+      );
+    };
+
+    console.log(`[MemberRequests] Attempting to set status="${newStatus}" on request ${requestId}`);
+
+    // 1️⃣ JSON — most reliable: Flask reads via request.get_json()
+    try {
+      const res = await axios.post(url, { status: newStatus, Status: newStatus }, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      toast.success(res.data?.message || `Request ${newStatus} successfully!`);
+      fetchRequests();
+      setUpdatingStatus(null);
+      return;
+    } catch (e1) {
+      const msg1 = e1?.response?.data?.message || '';
+      console.warn('[MemberRequests] JSON attempt failed:', e1?.response?.data || e1.message);
+      if (isAlreadyDone(msg1)) { toast.success(msg1); fetchRequests(); setUpdatingStatus(null); return; }
+    }
+
+    // 2️⃣ Query param — Flask reads via request.args.get('status')
+    try {
+      const res = await axios.post(`${url}?status=${encodeURIComponent(newStatus)}`, {}, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      toast.success(res.data?.message || `Request ${newStatus} successfully!`);
+      fetchRequests();
+      setUpdatingStatus(null);
+      return;
+    } catch (e2) {
+      const msg2 = e2?.response?.data?.message || '';
+      console.warn('[MemberRequests] Query-param attempt failed:', e2?.response?.data || e2.message);
+      if (isAlreadyDone(msg2)) { toast.success(msg2); fetchRequests(); setUpdatingStatus(null); return; }
+    }
+
+    // 3️⃣ FormData multipart — Flask reads via request.form.get('status')
     try {
       const fd = new FormData();
       fd.append('status', newStatus);
-      const res = await axios.post(
-        `${BASE_URL}/update-member-request/${requestId}`,
-        fd,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
-      toast.success(res.data?.message || `Request marked as ${newStatus}!`);
+      fd.append('Status', newStatus);
+      const res = await axios.post(url, fd);
+      toast.success(res.data?.message || `Request ${newStatus} successfully!`);
       fetchRequests();
-    } catch (error) {
-      const msg = error?.response?.data?.message || '';
-      // If server says 'already approved' / 'already rejected', treat as success & refresh
-      if (
-        msg.toLowerCase().includes('already') ||
-        msg.toLowerCase().includes('approved') ||
-        msg.toLowerCase().includes('success')
-      ) {
-        toast.success(msg || `Request is already ${newStatus}!`);
-        fetchRequests();
-        return;
-      }
-      console.error('Status update error:', error?.response?.data || error.message);
-      // Fallback: try JSON body in case server reads request.get_json()
-      try {
-        const res2 = await axios.post(
-          `${BASE_URL}/update-member-request/${requestId}`,
-          { status: newStatus },
-          { headers: { 'Content-Type': 'application/json' } }
-        );
-        toast.success(res2.data?.message || `Request marked as ${newStatus}!`);
-        fetchRequests();
-      } catch (err2) {
-        const msg2 = err2?.response?.data?.message || '';
-        if (
-          msg2.toLowerCase().includes('already') ||
-          msg2.toLowerCase().includes('approved') ||
-          msg2.toLowerCase().includes('success')
-        ) {
-          toast.success(msg2 || `Request is already ${newStatus}!`);
-          fetchRequests();
-          return;
-        }
-        toast.error(msg2 || `Failed to mark as ${newStatus}`);
-      }
+      setUpdatingStatus(null);
+      return;
+    } catch (e3) {
+      const msg3 = e3?.response?.data?.message || '';
+      console.warn('[MemberRequests] FormData attempt failed:', e3?.response?.data || e3.message);
+      if (isAlreadyDone(msg3)) { toast.success(msg3); fetchRequests(); setUpdatingStatus(null); return; }
+    }
+
+    // 4️⃣ URL-encoded form
+    try {
+      const params = new URLSearchParams();
+      params.append('status', newStatus);
+      const res = await axios.post(url, params, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      toast.success(res.data?.message || `Request ${newStatus} successfully!`);
+      fetchRequests();
+    } catch (e4) {
+      const msg4 = e4?.response?.data?.message || '';
+      console.error('[MemberRequests] All attempts failed:', e4?.response?.data || e4.message);
+      if (isAlreadyDone(msg4)) { toast.success(msg4); fetchRequests(); }
+      else toast.error(msg4 || `Failed to ${newStatus} request. Server did not accept the status update.`);
     } finally {
       setUpdatingStatus(null);
     }
   };
+
 
   // --- Edit ---
   const handleOpenEdit = (req) => {
@@ -529,12 +560,14 @@ const MemberRequests = () => {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((req) => {
+                  filtered.map((req, tableIdx) => {
                     const reqId = getReqId(req);
                     const isUpdating = updatingStatus === reqId;
                     return (
                       <tr key={req.id} className="hover:bg-purple-50/30 transition">
-                        <td className="py-3.5 px-4 font-semibold text-purple-700 text-xs font-mono">{req.id}</td>
+                        <td className="py-3.5 px-4 font-semibold text-purple-700 text-xs">
+                          {req.serialNo || `REQ-${String(tableIdx + 1).padStart(3, '0')}`}
+                        </td>
                         <td className="py-3.5 px-4">
                           <div className="font-semibold text-gray-900">{req.memberName}</div>
                           {req.fatherSpouseName && <div className="text-xs text-gray-400">S/O, W/O: {req.fatherSpouseName}</div>}

@@ -538,16 +538,129 @@ const LoanRequests = () => {
               ];
 
               return (
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs divide-y sm:divide-y-0 divide-gray-100">
-                  {rows.map(([label, val]) => (
-                    <div key={label} className="flex justify-between items-center py-2 px-3 bg-gray-50/60 rounded-xl">
-                      <span className="font-semibold text-gray-500">{label}</span>
-                      <span className="font-bold text-gray-800 text-right max-w-[60%] break-words">
-                        {label === 'Status' ? <StatusBadge status={val} /> : val}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs divide-y sm:divide-y-0 divide-gray-100">
+                    {rows.map(([label, val]) => (
+                      <div key={label} className="flex justify-between items-center py-2 px-3 bg-gray-50/60 rounded-xl">
+                        <span className="font-semibold text-gray-500">{label}</span>
+                        <span className="font-bold text-gray-800 text-right max-w-[60%] break-words">
+                          {label === 'Status' ? <StatusBadge status={val} /> : val}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* ── Documents Section ─────────────────────────────────── */}
+                  {(() => {
+                    // Parse additionalDocs metadata
+                    let docsMeta = [];
+                    const rawAdditionalDocs = r.additionalDocs || r.documents || r.documentsMeta;
+                    if (typeof rawAdditionalDocs === 'string') {
+                      try { docsMeta = JSON.parse(rawAdditionalDocs); } catch (_) {}
+                    } else if (Array.isArray(rawAdditionalDocs)) {
+                      docsMeta = rawAdditionalDocs;
+                    }
+
+                    // Build unified doc list from metadata + top-level URL fields
+                    const docList = [];
+
+                    // From docsMeta / additionalDocs array
+                    if (docsMeta.length > 0) {
+                      docsMeta.forEach((doc) => {
+                        const url = r[doc.fileKey] || r[doc.name] || doc.fileData || doc.url || null;
+                        docList.push({
+                          name: doc.name || doc.fileKey || 'Document',
+                          number: doc.number || '',
+                          url,
+                          fileName: doc.fileName || '',
+                        });
+                      });
+                    }
+
+                    // Fallback top-level image fields if not already added
+                    const topLevelDocs = [
+                      { key: 'bankStatement',  label: 'Bank Statement' },
+                      { key: 'bank_statement', label: 'Bank Statement' },
+                      { key: 'form16',         label: 'Form 16 / Balance Sheet' },
+                      { key: 'otherDocument',  label: 'Other Document' },
+                      { key: 'otherDoc',       label: 'Other Document' },
+                    ];
+                    topLevelDocs.forEach(({ key, label }) => {
+                      if (r[key] && !docList.some((d) => d.name === label)) {
+                        docList.push({ name: label, url: r[key], number: '', fileName: '' });
+                      }
+                    });
+
+                    if (docList.length === 0) return null;
+
+                    return (
+                      <div className="mt-5">
+                        <div className="bg-[#3B3C6E] text-white px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-t-xl">
+                          📄 Uploaded Documents ({docList.length})
+                        </div>
+                        <div className="border border-gray-100 rounded-b-xl p-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {docList.map((doc, idx) => {
+                            const isImage = doc.url && (
+                              doc.url.startsWith('data:image') ||
+                              /\.(png|jpg|jpeg|gif|webp|bmp)$/i.test(doc.fileName || doc.url || '')
+                            );
+                            const isBase64 = doc.url && doc.url.startsWith('data:');
+                            const hasUrl = !!doc.url;
+
+                            return (
+                              <div key={idx} className="flex flex-col items-center gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
+                                {/* Preview */}
+                                {isImage && doc.url ? (
+                                  <img
+                                    src={doc.url}
+                                    alt={doc.name}
+                                    className="w-full h-24 object-cover rounded-lg border border-gray-200 cursor-pointer"
+                                    onClick={() => window.open(doc.url, '_blank')}
+                                    title="Click to view full size"
+                                  />
+                                ) : (
+                                  <div className="w-full h-24 rounded-lg bg-purple-50 border border-purple-100 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-purple-100 transition"
+                                    onClick={() => hasUrl && window.open(doc.url, '_blank')}
+                                  >
+                                    <FileText className="w-8 h-8 text-purple-400" />
+                                    <span className="text-[10px] text-purple-500 font-medium text-center px-1">
+                                      {doc.fileName || 'File'}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Name & Number */}
+                                <div className="w-full">
+                                  <p className="text-[11px] font-bold text-gray-700 text-center truncate">{doc.name}</p>
+                                  {doc.number && (
+                                    <p className="text-[10px] text-gray-400 text-center font-mono">#{doc.number}</p>
+                                  )}
+                                </div>
+
+                                {/* View Button */}
+                                {hasUrl && (
+                                  <a
+                                    href={doc.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full text-center text-[11px] font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg py-1 transition"
+                                  >
+                                    View
+                                  </a>
+                                )}
+                                {!hasUrl && (
+                                  <span className="w-full text-center text-[11px] text-gray-400 bg-gray-100 rounded-lg py-1">
+                                    No file URL
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
               );
             })()}
 

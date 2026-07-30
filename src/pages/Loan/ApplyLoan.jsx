@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import { CreditCard, Loader, UserCheck, Search } from 'lucide-react';
+import { CreditCard, Loader, Search, FileText, Trash2, PlusCircle, ArrowLeft } from 'lucide-react';
 
 const toast = {
   success: (msg) =>
@@ -45,11 +45,14 @@ const ApplyLoan = () => {
 
   const today = new Date().toISOString().split('T')[0];
 
+  // ── Step Navigation State (1: Loan Form, 2: Documents Upload) ────────────
+  const [step, setStep] = useState(1);
+
   // ── Form State ─────────────────────────────────────────────────────────────
   // Top Header / Apply Loan Section
   const [date, setDate] = useState(today);
   const [branchName, setBranchName] = useState('');
-  const [productType, setProductType] = useState('Loan');
+  const [productType, setProductType] = useState('');
   const [selectedLoan, setSelectedLoan] = useState('');
   const [durationIn, setDurationIn] = useState('');
 
@@ -80,6 +83,18 @@ const ApplyLoan = () => {
   const [introducer, setIntroducer] = useState('');
   const [introducerMongoId, setIntroducerMongoId] = useState('');
   const [introducerName, setIntroducerName] = useState('');
+
+  // ── Document Upload States ────────────────────────────────────────────────
+  const [bankStatement, setBankStatement] = useState(null);
+  const [form16, setForm16] = useState(null);
+  const [otherDoc, setOtherDoc] = useState(null);
+
+  // Dynamic Add More Documents States
+  const [newDocName, setNewDocName] = useState('');
+  const [newDocNumber, setNewDocNumber] = useState('');
+  const [newDocFile, setNewDocFile] = useState(null);
+  const [addMoreDocs, setAddMoreDocs] = useState([]);
+  const fileInputRef = useRef(null);
 
   // Dropdown options
   const [branches, setBranches] = useState([]);
@@ -441,6 +456,36 @@ const ApplyLoan = () => {
     setShowIntroducerDropdown(false);
   };
 
+  // ── Dynamic Document Handlers ──────────────────────────────────────────────
+  const handleAddMoreDoc = () => {
+    if (!newDocName.trim()) {
+      return toast.error('Please enter Document Name');
+    }
+    if (!newDocFile) {
+      return toast.error('Please choose a document file to upload');
+    }
+
+    const docObj = {
+      id: Date.now(),
+      name: newDocName.trim(),
+      number: newDocNumber.trim(),
+      file: newDocFile,
+    };
+
+    setAddMoreDocs((prev) => [...prev, docObj]);
+    setNewDocName('');
+    setNewDocNumber('');
+    setNewDocFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    toast.success(`Added document: ${docObj.name}`);
+  };
+
+  const handleRemoveDoc = (id) => {
+    setAddMoreDocs((prev) => prev.filter((d) => d.id !== id));
+  };
+
   // ── Reset Form to Fresh State ──────────────────────────────────────────────
   const resetForm = () => {
     setDate(today);
@@ -472,10 +517,23 @@ const ApplyLoan = () => {
     setIntroducer('');
     setIntroducerMongoId('');
     setIntroducerName('');
+
+    // Reset Document Upload States
+    setStep(1);
+    setBankStatement(null);
+    setForm16(null);
+    setOtherDoc(null);
+    setNewDocName('');
+    setNewDocNumber('');
+    setNewDocFile(null);
+    setAddMoreDocs([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
-  // ── Handle Form Submission ──────────────────────────────────────────────────
-  const handleSubmit = async (e) => {
+  // ── Step 1 Validation -> Proceed to Step 2 (Documents) ────────────────────
+  const handleNextStep = (e) => {
     e.preventDefault();
 
     if (!branchName) return toast.error('Please select Branch Name');
@@ -484,9 +542,15 @@ const ApplyLoan = () => {
     if (!introducer || !introducer.trim()) return toast.error('Please enter Agent Code / Introducer ID');
     if (!loanAmount || parseFloat(loanAmount) <= 0) return toast.error('Please enter valid Loan Amount');
 
+    setStep(2);
+  };
+
+  const handleSubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+
     setSubmitting(true);
 
-    // Resolve IDs
+    // Resolve branch and product IDs
     const bObj = branches.find((b) => {
       const name = b.BranchName || b.branchName || b.name || b.branch_name || '';
       return name === branchName || b._id === branchName || b.BranchCode === branchName;
@@ -499,67 +563,89 @@ const ApplyLoan = () => {
     });
     const resolvedLoanProductId = pObj?._id || pObj?.id || pObj?.productId || selectedLoan;
 
-    const payload = {
-      // ── Required fields for POST /loan-requests ─────────────────────────
-      member_id: memberMongoId || memberId,
-      branch_id: resolvedBranchId,
-      loan_product_id: resolvedLoanProductId,
-      requestedAmount: parseFloat(loanAmount) || Number(loanAmount) || 0,
-      requestedTenure: parseInt(loanTenure, 10) || Number(loanTenure) || 0,
+    // Build FormData — same pattern as CreateMember.jsx
+    const formDataPayload = new FormData();
 
-      // ── Agent / CreatedBy ID & Code fields (all variations for backend compatibility) ──
-      createdBy: introducer || introducerMongoId || '',
-      created_by: introducer || introducerMongoId || '',
-      agent_id: introducerMongoId || introducer || '',
-      agentId: introducerMongoId || introducer || '',
-      agent_code: introducer || '',
-      agentCode: introducer || '',
-      introducer_id: introducerMongoId || introducer || '',
-      introducer_code: introducer || '',
+    formDataPayload.append('member_id', memberMongoId || memberId);
+    formDataPayload.append('branch_id', resolvedBranchId);
+    formDataPayload.append('loan_product_id', resolvedLoanProductId);
+    formDataPayload.append('requestedAmount', parseFloat(loanAmount) || 0);
+    formDataPayload.append('requestedTenure', parseInt(loanTenure, 10) || 0);
+    formDataPayload.append('agent_id', introducerMongoId || introducer || '');
+    formDataPayload.append('agent_code', introducer || '');
+    formDataPayload.append('introducer_id', introducerMongoId || introducer || '');
+    formDataPayload.append('date', date);
+    formDataPayload.append('branchName', branchName);
+    formDataPayload.append('productType', productType);
+    formDataPayload.append('selectedLoan', selectedLoan);
+    formDataPayload.append('durationIn', durationIn);
+    formDataPayload.append('memberId', memberId);
+    formDataPayload.append('memberName', memberName);
+    formDataPayload.append('memberType', memberType);
+    formDataPayload.append('age', age);
+    formDataPayload.append('guarantorId', guarantorId);
+    formDataPayload.append('guarantorName', guarantorName);
+    formDataPayload.append('guarantorType', guarantorType);
+    formDataPayload.append('guarantorAge', guarantorAge);
+    formDataPayload.append('loanAmount', loanAmount);
+    formDataPayload.append('loanTenure', loanTenure);
+    formDataPayload.append('frequency', frequency);
+    formDataPayload.append('interestType', interestType);
+    formDataPayload.append('roi', roi);
+    formDataPayload.append('emi', emi);
+    formDataPayload.append('loanPurpose', loanPurpose);
+    formDataPayload.append('introducer', introducer);
+    formDataPayload.append('introducerName', introducerName);
+    formDataPayload.append('status', 'Pending');
 
-      // ── Additional contextual fields for full form completeness ────────
-      date,
-      branchName,
-      productType,
-      selectedLoan,
-      durationIn,
-      memberId,
-      memberName,
-      memberType,
-      age,
-      guarantorSelect,
-      guarantorId,
-      guarantorName,
-      guarantorType,
-      guarantorAge,
-      loanAmount,
-      loanTenure,
-      frequency,
-      interestType,
-      roi,
-      interestRate:   parseFloat(roi) || Number(roi) || 0,
-      interest_rate:  parseFloat(roi) || Number(roi) || 0,
-      rateOfInterest: parseFloat(roi) || Number(roi) || 0,
-      emi,
-      loanPurpose,
-      introducer,
-      introducerName,
-      status: 'Pending',
-    };
+    // Documents — build docsMeta with fileKey, attach each raw file once
+    const docsMeta = [];
 
-    console.log('[ApplyLoan] Submitting payload to POST /loan-requests:', payload);
+    if (bankStatement) {
+      docsMeta.push({ id: 1, name: 'Bank Statement', number: '', fileKey: 'bankStatement' });
+      formDataPayload.append('bankStatement', bankStatement);
+      formDataPayload.append('UploadBankStatement', bankStatement);
+    }
+    if (form16) {
+      docsMeta.push({ id: 2, name: 'Form 16 / Balance Sheet', number: '', fileKey: 'form16' });
+      formDataPayload.append('form16', form16);
+      formDataPayload.append('UploadForm16', form16);
+    }
+    if (otherDoc) {
+      docsMeta.push({ id: 3, name: 'Other', number: '', fileKey: 'otherDocument' });
+      formDataPayload.append('otherDocument', otherDoc);
+      formDataPayload.append('UploadOtherDoc', otherDoc);
+    }
+
+    if (addMoreDocs && addMoreDocs.length > 0) {
+      addMoreDocs.forEach((doc, index) => {
+        const fileKey = doc.name
+          ? doc.name.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/ +(.)/g, (_, c) => c.toUpperCase())
+          : `additionalDoc_${index + 1}`;
+        docsMeta.push({ id: doc.id || index + 4, name: doc.name, number: doc.number || '', fileKey });
+        if (doc.file) formDataPayload.append(fileKey, doc.file);
+      });
+    }
+
+    // Send docsMeta as a single JSON string
+    formDataPayload.append('additionalDocs', JSON.stringify(docsMeta));
+
+    // console.log('--- Loan Request FormData Payload Entries ---');
+    // for (let pair of formDataPayload.entries()) {
+    //   console.log(pair[0] + ':', pair[1]);
+    // }
+    console.log('formDataPayload', formDataPayload);
 
     try {
-      const res = await axios.post(`${BASE}/loan-requests`, payload, {
-        headers: { 'Content-Type': 'application/json' },
+      const res = await axios.post(`${BASE}/loan-requests`, formDataPayload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
+      console.log('Apply Loan API Success:', res);
       toast.success(res.data?.message || 'Loan request submitted successfully!');
-      resetForm();
-    } catch (err) {
-      console.error('[ApplyLoan] POST /loan-requests submit error:', err?.response?.data || err.message);
-      toast.error(
-        err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Failed to submit loan request'
-      );
+      // resetForm();
+    } catch (error) {
+      console.error('Error submitting loan request:', error);
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to submit loan request');
     } finally {
       setSubmitting(false);
     }
@@ -578,512 +664,719 @@ const ApplyLoan = () => {
   return (
     <div className="min-h-screen p-4 sm:p-6 bg-slate-50">
       <div className="max-w-7xl mx-auto shadow-sm rounded-lg border border-gray-200 bg-white">
-        <form onSubmit={handleSubmit} className="space-y-0">
-          {/* ── Banner 1: APPLY LOAN ────────────────────────────────────────── */}
-          <div className="bg-[#3B3C6E] text-white px-4 py-2.5 font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-purple-200" />
-              <span>APPLY LOAN</span>
+        {/* ── STEP 1: APPLY LOAN FORM ──────────────────────────────────────── */}
+        {step === 1 && (
+          <form onSubmit={handleNextStep} className="space-y-0">
+            {/* ── Banner 1: APPLY LOAN ────────────────────────────────────────── */}
+            <div className="bg-[#3B3C6E] text-white px-4 py-2.5 font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-purple-200" />
+                <span>APPLY LOAN</span>
+              </div>
             </div>
-          </div>
 
-          <div
-            className="p-5 space-y-5"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300'%3E%3Cg stroke='%23c5cae9' stroke-width='0.5' opacity='0.25' fill='none'%3E%3Ccircle cx='300' cy='150' r='120'/%3E%3Ccircle cx='300' cy='150' r='80'/%3E%3Cline x1='0' y1='150' x2='600' y2='150'/%3E%3Cline x1='300' y1='0' x2='300' y2='300'/%3E%3C/g%3E%3C/svg%3E")`,
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'center',
-              backgroundSize: 'contain',
-            }}
-          >
-            {/* Top Fields Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-              <div>
-                <label className={labelCls}>Date</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className={inputCls}
-                />
-              </div>
+            <div
+              className="p-5 space-y-5"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300'%3E%3Cg stroke='%23c5cae9' stroke-width='0.5' opacity='0.25' fill='none'%3E%3Ccircle cx='300' cy='150' r='120'/%3E%3Ccircle cx='300' cy='150' r='80'/%3E%3Cline x1='0' y1='150' x2='600' y2='150'/%3E%3Cline x1='300' y1='0' x2='300' y2='300'/%3E%3C/g%3E%3C/svg%3E")`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center',
+                backgroundSize: 'contain',
+              }}
+            >
+              {/* Top Fields Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                <div>
+                  <label className={labelCls}>Date</label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
 
-              <div>
-                <label className={labelCls}>Branch Name</label>
-                <select
-                  value={branchName}
-                  onChange={(e) => setBranchName(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="">--Select--</option>
-                  {branches.map((b, idx) => {
-                    const label = typeof b === 'string' ? b : (b?.branchName || b?.branch_name || b?.name || b?.branch_code || b?.code || `Branch ${idx + 1}`);
-                    const val = typeof b === 'string' ? b : (b?.branchName || b?.branch_name || b?.name || b?._id || b?.id || label);
-                    return (
-                      <option key={b?._id || b?.id || idx} value={val}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div>
-                <label className={labelCls}>Product Type</label>
-                <select
-                  value={productType}
-                  onChange={(e) => {
-                    setProductType(e.target.value);
-                    setSelectedLoan('');
-                  }}
-                  className={inputCls}
-                >
-                  <option value="Group">Group</option>
-                  <option value="Loan">Loan</option>
-                  <option value="Limit">Limit</option>
-                </select>
-              </div>
-
-              <div>
-                <label className={labelCls}>Select Loan</label>
-                <select
-                  value={selectedLoan}
-                  onChange={(e) => setSelectedLoan(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="">-Select-</option>
-                  {loanProducts
-                    .filter((p) => {
-                      if (!p || typeof p === 'string') return true;
-                      const pType = p.productType || p.product_type || p.type || 'Loan';
-                      return !productType || pType.toLowerCase() === productType.toLowerCase();
-                    })
-                    .map((p, idx) => {
-                      const label = typeof p === 'string' ? p : (p?.productName || p?.product_name || p?.loanName || p?.loan_name || p?.name || `Product ${idx + 1}`);
-                      const val = typeof p === 'string' ? p : (p?.productName || p?.product_name || p?.loanName || p?.loan_name || p?.name || p?._id || p?.id || label);
+                <div>
+                  <label className={labelCls}>
+                    Branch Name <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={branchName}
+                    onChange={(e) => setBranchName(e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="">Select Branch</option>
+                    {branches.map((b, idx) => {
+                      const name = b.BranchName || b.branchName || b.name || b.branch_name || '';
+                      const code = b.BranchCode || b.code || '';
+                      const val = name || code;
                       return (
-                        <option key={p?._id || p?.id || idx} value={val}>
-                          {label}
+                        <option key={b._id || idx} value={val}>
+                          {name} {code ? `(${code})` : ''}
                         </option>
                       );
                     })}
-                </select>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>Product Type</label>
+                  <select
+                    value={productType}
+                    onChange={(e) => {
+                      setProductType(e.target.value);
+                      setSelectedLoan('');
+                    }}
+                    className={inputCls}
+                  >
+                    <option value="">--Select--</option>
+                    <option value="Group">Group</option>
+                    <option value="Loan">Loan</option>
+                    <option value="Limit">Limit</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>
+                    Select Loan <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedLoan}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedLoan(val);
+                      const pObj = loanProducts.find((p) => {
+                        const pName = p.ProductName || p.productName || p.name || p.title || p.ProductTitle || '';
+                        return pName === val || p._id === val;
+                      });
+                      if (pObj) {
+                        const pRoi = pObj.roi || pObj.interestRate || pObj.rateOfInterest || pObj.interest_rate || '';
+                        if (pRoi) setRoi(pRoi);
+                        const pTenure = pObj.tenure || pObj.loanTenure || pObj.duration || '';
+                        if (pTenure) setLoanTenure(pTenure);
+                        const pFreq = pObj.frequency || pObj.paymentFrequency || '';
+                        if (pFreq) setFrequency(pFreq);
+                        const pType = pObj.interestType || pObj.interest_type || '';
+                        if (pType) setInterestType(pType);
+                      }
+                    }}
+                    className={inputCls}
+                  >
+                    <option value="">Select Loan Product</option>
+                    {loanProducts
+                      .filter((p) => {
+                        if (!productType) return true;
+                        const pType = p.productType || p.product_type || p.type || p.ProductType || 'Loan';
+                        return pType.toLowerCase() === productType.toLowerCase();
+                      })
+                      .map((p, idx) => {
+                        const pName = p.ProductName || p.productName || p.name || p.title || p.ProductTitle || '';
+                        return (
+                          <option key={p._id || idx} value={pName}>
+                            {pName}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>Duration In</label>
+                  <select
+                    value={durationIn}
+                    onChange={(e) => setDurationIn(e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="">Select Duration In</option>
+                    <option value="Days">Days</option>
+                    <option value="Weeks">Weeks</option>
+                    <option value="Months">Months</option>
+                    <option value="Years">Years</option>
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label className={labelCls}>Duration In</label>
-                <select
-                  value={durationIn}
-                  onChange={(e) => setDurationIn(e.target.value)}
-                  className={inputCls}
+              {/* ── Banner 2: Member Details ─────────────────────────────── */}
+              <div className="rounded border border-gray-200">
+                <SectionBanner title="Member Details" />
+                <div className="p-4 bg-white">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                      <label className={labelCls}>
+                        Member ID <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={memberId}
+                          onChange={(e) => handleMemberIdInputChange(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSearchMember();
+                            }
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => setShowMemberDropdown(false), 200);
+                          }}
+                          placeholder="Enter Member ID"
+                          className={inputCls}
+                        />
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={handleSearchMember}
+                          className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
+                          title="Search Member ID"
+                        >
+                          <Search className="w-3.5 h-3.5" />
+                          <span>Search</span>
+                        </button>
+
+                        {showMemberDropdown && memberSuggestions.length > 0 && (
+                          <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-xl max-h-56 overflow-y-auto text-xs divide-y divide-gray-100 ring-1 ring-black/5">
+                            {memberSuggestions.map((m, idx) => {
+                              const mid = m.memberId || m.MemberId || m._id || m.id || '';
+                              const { fullName } = extractMemberData(m);
+                              return (
+                                <li
+                                  key={mid || idx}
+                                  onMouseDown={() => selectMemberSuggestion(m)}
+                                  className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition"
+                                >
+                                  <div>
+                                    <span className="font-bold text-indigo-900">{mid}</span>
+                                    {fullName && <span className="ml-2 text-gray-700">({fullName})</span>}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Member Name</label>
+                      <input
+                        type="text"
+                        value={memberName}
+                        onChange={(e) => setMemberName(e.target.value)}
+                        placeholder="Member Name"
+                        className={inputCls}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Member Type</label>
+                      <input
+                        type="text"
+                        value={memberType}
+                        onChange={(e) => setMemberType(e.target.value)}
+                        placeholder="Member Type"
+                        className={inputCls}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Age</label>
+                      <input
+                        type="text"
+                        value={age}
+                        onChange={(e) => setAge(e.target.value)}
+                        placeholder="Age"
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Banner 3: Guarantor / Co-Applicant Details ───────────── */}
+              <div className="rounded border border-gray-200">
+                <SectionBanner title="Guarantor / Co-Applicant Details" />
+                <div className="p-4 bg-white">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                      <label className={labelCls}>Guarantor Select</label>
+                      <select
+                        value={guarantorSelect}
+                        onChange={(e) => setGuarantorSelect(e.target.value)}
+                        className={inputCls}
+                      >
+                        <option value="">Select Guarantor</option>
+                        <option value="Guarantor 1">Guarantor 1</option>
+                        <option value="Guarantor 2">Guarantor 2</option>
+                        <option value="Co-Applicant">Co-Applicant</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Guarantor ID</label>
+                      <div className="relative flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={guarantorId}
+                          onChange={(e) => handleGuarantorIdInputChange(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSearchGuarantor();
+                            }
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => setShowGuarantorDropdown(false), 200);
+                          }}
+                          placeholder="Enter Guarantor ID"
+                          className={inputCls}
+                        />
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={handleSearchGuarantor}
+                          className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
+                          title="Search Guarantor ID"
+                        >
+                          <Search className="w-3.5 h-3.5" />
+                          <span>Search</span>
+                        </button>
+
+                        {showGuarantorDropdown && guarantorSuggestions.length > 0 && (
+                          <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-xl max-h-56 overflow-y-auto text-xs divide-y divide-gray-100 ring-1 ring-black/5">
+                            {guarantorSuggestions.map((m, idx) => {
+                              const mid = m.memberId || m.MemberId || m._id || m.id || '';
+                              const { fullName } = extractMemberData(m);
+                              return (
+                                <li
+                                  key={mid || idx}
+                                  onMouseDown={() => selectGuarantorSuggestion(m)}
+                                  className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition"
+                                >
+                                  <div>
+                                    <span className="font-bold text-indigo-900">{mid}</span>
+                                    {fullName && <span className="ml-2 text-gray-700">({fullName})</span>}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Guarantor Name</label>
+                      <input
+                        type="text"
+                        value={guarantorName}
+                        onChange={(e) => setGuarantorName(e.target.value)}
+                        placeholder="Guarantor Name"
+                        className={inputCls}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Guarantor Type</label>
+                      <input
+                        type="text"
+                        value={guarantorType}
+                        onChange={(e) => setGuarantorType(e.target.value)}
+                        placeholder="Guarantor Type"
+                        className={inputCls}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Guarantor Age</label>
+                      <input
+                        type="text"
+                        value={guarantorAge}
+                        onChange={(e) => setGuarantorAge(e.target.value)}
+                        placeholder="Age"
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Banner 4: Loan Details ────────────────────────────────── */}
+              <div className="rounded border border-gray-200">
+                <SectionBanner title="Loan Details" />
+                <div className="p-4 bg-white space-y-4">
+                  {/* First row of Loan Details */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                      <label className={labelCls}>
+                        Loan Amount <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={loanAmount}
+                        onChange={(e) => setLoanAmount(e.target.value)}
+                        placeholder="Enter Loan Amount"
+                        className={inputCls}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Loan Tenure</label>
+                      <input
+                        type="number"
+                        value={loanTenure}
+                        onChange={(e) => setLoanTenure(e.target.value)}
+                        placeholder="Tenure"
+                        className={inputCls}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Frequency</label>
+                      <select
+                        value={frequency}
+                        onChange={(e) => setFrequency(e.target.value)}
+                        className={inputCls}
+                      >
+                        <option value="">Select Frequency</option>
+                        <option value="Daily">Daily</option>
+                        <option value="Weekly">Weekly</option>
+                        <option value="Fortnightly">Fortnightly</option>
+                        <option value="Monthly">Monthly</option>
+                        <option value="Quarterly">Quarterly</option>
+                        <option value="Half-Yearly">Half-Yearly</option>
+                        <option value="Yearly">Yearly</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Interest Type</label>
+                      <select
+                        value={interestType}
+                        onChange={(e) => setInterestType(e.target.value)}
+                        className={inputCls}
+                      >
+                        <option value="">Select Interest Type</option>
+                        <option value="Flat">Flat</option>
+                        <option value="Declining Balance">Declining Balance</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>ROI(%)</label>
+                      <input
+                        type="number"
+                        value={roi}
+                        onChange={(e) => setRoi(e.target.value)}
+                        placeholder="Enter ROI (%)"
+                        className={inputCls}
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Second row of Loan Details */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                      <label className={labelCls}>EMI-</label>
+                      <input
+                        type="text"
+                        value={emi}
+                        onChange={(e) => setEmi(e.target.value)}
+                        placeholder="Calculated EMI"
+                        className={`${inputCls} font-bold text-indigo-700 bg-indigo-50/50`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Loan Purpose</label>
+                      <input
+                        type="text"
+                        value={loanPurpose}
+                        onChange={(e) => setLoanPurpose(e.target.value)}
+                        placeholder="Enter"
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Banner 5: Agent Details ─────────────────────────────── */}
+              <div className="rounded border border-gray-200">
+                <SectionBanner title="Agent Details" />
+                <div className="p-4 bg-white">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                      <label className={labelCls}>
+                        Agent Code <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={introducer}
+                          onChange={(e) => handleIntroducerInputChange(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSearchIntroducer();
+                            }
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => setShowIntroducerDropdown(false), 200);
+                          }}
+                          placeholder="Enter Agent Code (e.g. AG002)"
+                          className={inputCls}
+                        />
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={handleSearchIntroducer}
+                          className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
+                          title="Search Agent Code"
+                        >
+                          <Search className="w-3.5 h-3.5" />
+                          <span>Search</span>
+                        </button>
+
+                        {showIntroducerDropdown && introducerSuggestions.length > 0 && (
+                          <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-xl max-h-56 overflow-y-auto text-xs divide-y divide-gray-100 ring-1 ring-black/5">
+                            {introducerSuggestions.map((m, idx) => {
+                              const mid = m.agentCode || m.agent_code || m.memberId || m.MemberId || m._id || m.id || '';
+                              const { fullName } = extractMemberData(m);
+                              return (
+                                <li
+                                  key={mid || idx}
+                                  onMouseDown={() => selectIntroducerSuggestion(m)}
+                                  className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition"
+                                >
+                                  <div>
+                                    <span className="font-bold text-indigo-900">{mid}</span>
+                                    {fullName && <span className="ml-2 text-gray-700">({fullName})</span>}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Agent Name</label>
+                      <input
+                        type="text"
+                        value={introducerName}
+                        onChange={(e) => setIntroducerName(e.target.value)}
+                        placeholder="Agent Name"
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Bar (NEXT Button) */}
+              <div className="flex justify-end pt-4">
+                <button
+                  type="submit"
+                  className="px-8 py-2 bg-[#2D336B] hover:bg-[#1E2245] text-white font-bold text-xs uppercase tracking-wider rounded transition flex items-center gap-2 shadow"
                 >
-                  <option value="">-Select-</option>
-                  <option value="Days">Days</option>
-                  <option value="Weeks">Weeks</option>
-                  <option value="Months">Months</option>
-                  <option value="Years">Years</option>
-                </select>
+                  <span>NEXT</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* ── STEP 2: DOCUMENTS UPLOAD ─────────────────────────────────────── */}
+        {step === 2 && (
+          <div className="space-y-0">
+            {/* Banner: DOCUMENTS */}
+            <div className="bg-[#3B3C6E] text-white px-4 py-2.5 font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-purple-200" />
+                <span>DOCUMENTS</span>
               </div>
             </div>
 
-            {/* ── Banner 2: Member Details ──────────────────────────────────── */}
-            <div className="rounded border border-gray-200">
-              <SectionBanner title="Member Details" />
-              <div className="p-4 bg-white">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div
+              className="p-5 space-y-5 bg-white"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300'%3E%3Cg stroke='%23c5cae9' stroke-width='0.5' opacity='0.25' fill='none'%3E%3Ccircle cx='300' cy='150' r='120'/%3E%3Ccircle cx='300' cy='150' r='80'/%3E%3Cline x1='0' y1='150' x2='600' y2='150'/%3E%3Cline x1='300' y1='0' x2='300' y2='300'/%3E%3C/g%3E%3C/svg%3E")`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center',
+                backgroundSize: 'contain',
+              }}
+            >
+              {/* Upload KYC Documents Section */}
+              <div className="rounded border border-gray-200 overflow-hidden">
+                <SectionBanner title="Upload KYC Documents" />
+                <div className="p-4 bg-white grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-gray-700">Member Id</label>
-                      {fetchingMember && <Loader className="w-3 h-3 animate-spin text-indigo-600" />}
-                    </div>
-                    <div className="relative flex items-center gap-1">
+                    <label className={labelCls}>Bank Statement</label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf,.doc,.docx"
+                      onChange={(e) => setBankStatement(e.target.files[0] || null)}
+                      className={inputCls}
+                    />
+                    {bankStatement && (
+                      <p className="text-[10px] text-green-600 font-semibold mt-1 truncate">
+                        Selected: {bankStatement.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Form 16 / Balance Sheet</label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf,.doc,.docx"
+                      onChange={(e) => setForm16(e.target.files[0] || null)}
+                      className={inputCls}
+                    />
+                    {form16 && (
+                      <p className="text-[10px] text-green-600 font-semibold mt-1 truncate">
+                        Selected: {form16.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Other</label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf,.doc,.docx"
+                      onChange={(e) => setOtherDoc(e.target.files[0] || null)}
+                      className={inputCls}
+                    />
+                    {otherDoc && (
+                      <p className="text-[10px] text-green-600 font-semibold mt-1 truncate">
+                        Selected: {otherDoc.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Add More Documents Section */}
+              <div className="rounded border border-gray-200 overflow-hidden">
+                <SectionBanner title="Add More Documents" />
+                <div className="p-4 bg-white space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                    <div className="sm:col-span-3">
+                      <label className={labelCls}>Document Name:</label>
                       <input
                         type="text"
-                        value={memberId}
-                        onChange={(e) => handleMemberIdInputChange(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleSearchMember();
-                          }
-                        }}
-                        onBlur={() => {
-                          setTimeout(() => setShowMemberDropdown(false), 200);
-                        }}
-                        placeholder="Enter Member ID"
+                        value={newDocName}
+                        onChange={(e) => setNewDocName(e.target.value)}
+                        placeholder="Enter Document Name"
                         className={inputCls}
                       />
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={handleSearchMember}
-                        className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
-                        title="Search Member"
-                      >
-                        <Search className="w-3.5 h-3.5" />
-                        <span>Search</span>
-                      </button>
-
-                      {showMemberDropdown && memberSuggestions.length > 0 && (
-                        <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-xl max-h-56 overflow-y-auto text-xs divide-y divide-gray-100 ring-1 ring-black/5">
-                          {memberSuggestions.map((m, idx) => {
-                            const mid = m.memberId || m.MemberId || m._id || m.id || '';
-                            const { fullName, type } = extractMemberData(m);
-                            return (
-                              <li
-                                key={mid || idx}
-                                onMouseDown={() => selectMemberSuggestion(m)}
-                                className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition"
-                              >
-                                <div>
-                                  <span className="font-bold text-indigo-900">{mid}</span>
-                                  {fullName && <span className="ml-2 text-gray-700">({fullName})</span>}
-                                </div>
-                                {type && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">{type}</span>}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
                     </div>
-                  </div>
 
-                  <div>
-                    <label className={labelCls}>Member Name</label>
-                    <input
-                      type="text"
-                      value={memberName}
-                      onChange={(e) => setMemberName(e.target.value)}
-                      placeholder="Member Name"
-                      className={inputCls}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>Member Type</label>
-                    <input
-                      type="text"
-                      value={memberType}
-                      onChange={(e) => setMemberType(e.target.value)}
-                      placeholder="Type"
-                      className={inputCls}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>Age</label>
-                    <input
-                      type="text"
-                      value={age}
-                      onChange={(e) => setAge(e.target.value)}
-                      placeholder="Age"
-                      className={inputCls}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Banner 3: Guarantor / Co-Applicant Details ───────────────── */}
-            <div className="rounded border border-gray-200">
-              <SectionBanner title="Gurantor / Co-Applicant Details" />
-              <div className="p-4 bg-white">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-                  <div>
-                    <label className={labelCls}>Select</label>
-                    <select
-                      value={guarantorSelect}
-                      onChange={(e) => setGuarantorSelect(e.target.value)}
-                      className={inputCls}
-                    >
-                      <option value="">--Select--</option>
-                      <option value="Guarantor">Guarantor</option>
-                      <option value="Co-Applicant">Co-Applicant</option>
-                      <option value="Both">Both</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>Gurantor Id</label>
-                    <div className="relative flex items-center gap-1">
+                    <div className="sm:col-span-3">
+                      <label className={labelCls}>Document Number:</label>
                       <input
                         type="text"
-                        value={guarantorId}
-                        onChange={(e) => handleGuarantorIdInputChange(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleSearchGuarantor();
-                          }
-                        }}
-                        onBlur={() => {
-                          setTimeout(() => setShowGuarantorDropdown(false), 200);
-                        }}
-                        placeholder="Enter Gurantor ID"
+                        value={newDocNumber}
+                        onChange={(e) => setNewDocNumber(e.target.value)}
+                        placeholder="Enter Document Number"
                         className={inputCls}
                       />
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={handleSearchGuarantor}
-                        className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
-                        title="Search Guarantor"
-                      >
-                        <Search className="w-3.5 h-3.5" />
-                        <span>Search</span>
-                      </button>
-
-                      {showGuarantorDropdown && guarantorSuggestions.length > 0 && (
-                        <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-xl max-h-56 overflow-y-auto text-xs divide-y divide-gray-100 ring-1 ring-black/5">
-                          {guarantorSuggestions.map((m, idx) => {
-                            const mid = m.memberId || m.MemberId || m._id || m.id || '';
-                            const { fullName, type } = extractMemberData(m);
-                            return (
-                              <li
-                                key={mid || idx}
-                                onMouseDown={() => selectGuarantorSuggestion(m)}
-                                className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition"
-                              >
-                                <div>
-                                  <span className="font-bold text-indigo-900">{mid}</span>
-                                  {fullName && <span className="ml-2 text-gray-700">({fullName})</span>}
-                                </div>
-                                {type && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">{type}</span>}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
                     </div>
-                  </div>
 
-                  <div>
-                    <label className={labelCls}>Gurantor Name</label>
-                    <input
-                      type="text"
-                      value={guarantorName}
-                      onChange={(e) => setGuarantorName(e.target.value)}
-                      placeholder="Gurantor Name"
-                      className={inputCls}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>Gurantor Type</label>
-                    <input
-                      type="text"
-                      value={guarantorType}
-                      onChange={(e) => setGuarantorType(e.target.value)}
-                      placeholder="Type"
-                      className={inputCls}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>Age</label>
-                    <input
-                      type="text"
-                      value={guarantorAge}
-                      onChange={(e) => setGuarantorAge(e.target.value)}
-                      placeholder="Age"
-                      className={inputCls}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Banner 4: Loan Details ───────────────────────────────────── */}
-            <div className="rounded overflow-hidden">
-              <SectionBanner title="Loan Details" />
-              <div className="p-4 bg-white border-x border-b border-gray-200 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-                  <div>
-                    <label className={labelCls}>Loan Amount</label>
-                    <input
-                      type="number"
-                      value={loanAmount}
-                      onChange={(e) => setLoanAmount(e.target.value)}
-                      placeholder="Enter Loan Amount"
-                      className={inputCls}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>Loan Tenure</label>
-                    <input
-                      type="number"
-                      value={loanTenure}
-                      onChange={(e) => setLoanTenure(e.target.value)}
-                      placeholder="Enter Tenure"
-                      className={inputCls}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>Frequency</label>
-                    <select
-                      value={frequency}
-                      onChange={(e) => setFrequency(e.target.value)}
-                      className={inputCls}
-                    >
-                      <option value="">--Select--</option>
-                      <option value="Daily">Daily</option>
-                      <option value="Weekly">Weekly</option>
-                      <option value="Fortnightly">Fortnightly</option>
-                      <option value="Monthly">Monthly</option>
-                      <option value="Quarterly">Quarterly</option>
-                      <option value="Half-Yearly">Half-Yearly</option>
-                      <option value="Yearly">Yearly</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>Interest Type</label>
-                    <select
-                      value={interestType}
-                      onChange={(e) => setInterestType(e.target.value)}
-                      className={inputCls}
-                    >
-                      <option value="">--Select--</option>
-                      <option value="Flat">Flat</option>
-                      <option value="Declining Balance">Declining Balance</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>ROI(%)</label>
-                    <input
-                      type="number"
-                      value={roi}
-                      onChange={(e) => setRoi(e.target.value)}
-                      placeholder="Enter ROI (%)"
-                      className={inputCls}
-                      step="0.01"
-                    />
-                  </div>
-                </div>
-
-                {/* Second row of Loan Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-                  <div>
-                    <label className={labelCls}>EMI-</label>
-                    <input
-                      type="text"
-                      value={emi}
-                      onChange={(e) => setEmi(e.target.value)}
-                      placeholder="Calculated EMI"
-                      className={`${inputCls} font-bold text-indigo-700 bg-indigo-50/50`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>Loan Purpose</label>
-                    <input
-                      type="text"
-                      value={loanPurpose}
-                      onChange={(e) => setLoanPurpose(e.target.value)}
-                      placeholder="Enter"
-                      className={inputCls}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Banner 5: Agent Details ─────────────────────────────── */}
-            <div className="rounded border border-gray-200">
-              <SectionBanner title="Agent Details" />
-              <div className="p-4 bg-white">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-                  <div>
-                    <label className={labelCls}>
-                      Agent Code <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative flex items-center gap-1">
+                    <div className="sm:col-span-4">
                       <input
-                        type="text"
-                        value={introducer}
-                        onChange={(e) => handleIntroducerInputChange(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleSearchIntroducer();
-                          }
-                        }}
-                        onBlur={() => {
-                          setTimeout(() => setShowIntroducerDropdown(false), 200);
-                        }}
-                        placeholder="Enter Agent Code (e.g. AG002)"
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*,.pdf,.doc,.docx"
+                        onChange={(e) => setNewDocFile(e.target.files[0] || null)}
                         className={inputCls}
                       />
+                    </div>
+
+                    <div className="sm:col-span-2 flex justify-end">
                       <button
                         type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={handleSearchIntroducer}
-                        className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
-                        title="Search Agent Code"
+                        onClick={handleAddMoreDoc}
+                        className="w-full sm:w-auto px-6 py-1.5 bg-[#1E2245] hover:bg-[#2D336B] text-white font-bold text-xs uppercase tracking-wider rounded transition flex items-center justify-center gap-1 shadow"
                       >
-                        <Search className="w-3.5 h-3.5" />
-                        <span>Search</span>
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        <span>ADD</span>
                       </button>
-
-                      {showIntroducerDropdown && introducerSuggestions.length > 0 && (
-                        <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-xl max-h-56 overflow-y-auto text-xs divide-y divide-gray-100 ring-1 ring-black/5">
-                          {introducerSuggestions.map((m, idx) => {
-                            const mid = m.agentCode || m.agent_code || m.memberId || m.MemberId || m._id || m.id || '';
-                            const { fullName } = extractMemberData(m);
-                            return (
-                              <li
-                                key={mid || idx}
-                                onMouseDown={() => selectIntroducerSuggestion(m)}
-                                className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition"
-                              >
-                                <div>
-                                  <span className="font-bold text-indigo-900">{mid}</span>
-                                  {fullName && <span className="ml-2 text-gray-700">({fullName})</span>}
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
                     </div>
                   </div>
 
-                  <div>
-                    <label className={labelCls}>Agent Name</label>
-                    <input
-                      type="text"
-                      value={introducerName}
-                      onChange={(e) => setIntroducerName(e.target.value)}
-                      placeholder="Agent Name"
-                      className={inputCls}
-                    />
-                  </div>
+                  {/* Added Documents List / Table */}
+                  {addMoreDocs.length > 0 && (
+                    <div className="mt-4 border rounded-md overflow-hidden">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-gray-100 border-b text-gray-700 font-semibold uppercase text-[11px]">
+                          <tr>
+                            <th className="p-2 border-r">Document Name</th>
+                            <th className="p-2 border-r">Document Number</th>
+                            <th className="p-2 border-r">File Name</th>
+                            <th className="p-2 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {addMoreDocs.map((doc) => (
+                            <tr key={doc.id} className="hover:bg-gray-50">
+                              <td className="p-2 border-r font-medium text-gray-800">{doc.name}</td>
+                              <td className="p-2 border-r text-gray-600">{doc.number || 'N/A'}</td>
+                              <td className="p-2 border-r text-indigo-600 font-mono text-[11px]">
+                                {doc.file ? doc.file.name : 'No File'}
+                              </td>
+                              <td className="p-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveDoc(doc.id)}
+                                  className="text-red-500 hover:text-red-700 font-bold p-1 rounded hover:bg-red-50 transition"
+                                  title="Remove Document"
+                                >
+                                  <Trash2 className="w-4 h-4 mx-auto" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
 
-            {/* Action Bar (NEXT Button) */}
-            <div className="flex justify-end pt-4">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-8 py-2 bg-[#2D336B] hover:bg-[#1E2245] text-white font-bold text-xs uppercase tracking-wider rounded transition flex items-center gap-2 shadow disabled:opacity-50"
-              >
-                {submitting ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  'NEXT'
-                )}
-              </button>
+              {/* Action Buttons: Back & Submit */}
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="px-6 py-2 bg-[#2D336B] hover:bg-[#1E2245] text-white font-bold text-xs uppercase tracking-wider rounded transition flex items-center gap-2 shadow"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="px-8 py-2 bg-[#1E2245] hover:bg-[#2D336B] text-white font-bold text-xs uppercase tracking-wider rounded transition flex items-center gap-2 shadow disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    'Submit'
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-        </form>
+        )}
       </div>
     </div>
   );

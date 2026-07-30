@@ -1,0 +1,597 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import Swal from 'sweetalert2';
+import {
+  CreditCard,
+  Search,
+  Eye,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  Loader,
+  Clock,
+  Check,
+  X,
+  Users,
+  AlertCircle,
+  FileText,
+  Building,
+  User,
+  Shield,
+  BadgeCheck,
+} from 'lucide-react';
+import { useLoader } from '../../context/LoaderContext';
+
+const BASE_URL =
+  import.meta.env.VITE_LOCALPRIME_URL ||
+  'http://192.168.29.145:5000/badri_enterprises/localprime';
+
+const toast = {
+  success: (msg) =>
+    Swal.fire({
+      icon: 'success',
+      title: 'Success',
+      text: msg,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+    }),
+  error: (msg) =>
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: msg,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 4000,
+      timerProgressBar: true,
+    }),
+};
+
+const STATUS_TABS = [
+  { key: 'ALL', label: 'All Requests' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'rejected', label: 'Rejected' },
+];
+
+const StatusBadge = ({ status }) => {
+  const s = String(status || '').toLowerCase();
+  const map = {
+    pending: { cls: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Pending' },
+    approved: { cls: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Approved' },
+    active: { cls: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Approved' },
+    rejected: { cls: 'bg-red-100 text-red-700 border-red-200', label: 'Rejected' },
+  };
+  const { cls, label } = map[s] || map.pending;
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${cls}`}>
+      {label}
+    </span>
+  );
+};
+
+const LoanRequests = () => {
+  const loaderCtx = useLoader();
+  const showLoader = loaderCtx?.showLoader || (() => {});
+  const hideLoader = loaderCtx?.hideLoader || (() => {});
+
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [statusTab, setStatusTab] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [updatingStatus, setUpdatingStatus] = useState(null);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+
+  // Caches for resolving IDs
+  const [membersCache, setMembersCache] = useState([]);
+  const [branchesCache, setBranchesCache] = useState([]);
+  const [productsCache, setProductsCache] = useState([]);
+
+  // ── Fetch Caches ────────────────────────────────────────────────────────────
+  const fetchCaches = useCallback(async () => {
+    try {
+      const [mRes, bRes, pRes] = await Promise.all([
+        axios.get(`${BASE_URL}/get-members`).catch(() => ({ data: [] })),
+        axios.get(`${BASE_URL}/branches`).catch(() => ({ data: [] })),
+        axios.get(`${BASE_URL}/loan-products`).catch(() => ({ data: [] })),
+      ]);
+
+      const mList = Array.isArray(mRes.data) ? mRes.data : mRes.data?.data || [];
+      const bList = Array.isArray(bRes.data) ? bRes.data : bRes.data?.data || bRes.data?.branches || [];
+      const pList = Array.isArray(pRes.data) ? pRes.data : pRes.data?.data || pRes.data?.products || [];
+
+      setMembersCache(mList);
+      setBranchesCache(bList);
+      setProductsCache(pList);
+    } catch (_) {
+      /* silent */
+    }
+  }, []);
+
+  // ── Fetch Loan Requests ─────────────────────────────────────────────────────
+  const fetchRequests = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`${BASE_URL}/loan-requests`);
+      const rawList = Array.isArray(res.data)
+        ? res.data
+        : res.data?.data || res.data?.requests || [];
+
+      console.log('[LoanRequests] GET /loan-requests raw response count:', rawList.length);
+
+      const normalized = rawList.map((item, idx) => {
+        const id = item.request_id || item.requestId || item._id || item.id || `LOAN-REQ-${idx + 1}`;
+        const rawStatus =
+          item.status ||
+          item.Status ||
+          item.request_status ||
+          item.approval_status ||
+          'pending';
+        const status = rawStatus.toString().toLowerCase();
+
+        return {
+          raw: item,
+          id,
+          serialNo: `LR-${String(idx + 1).padStart(3, '0')}`,
+          status,
+          createdAt: item.created_at || item.createdAt || item.date || 'N/A',
+        };
+      });
+
+      setRequests(normalized);
+    } catch (err) {
+      console.error('[LoanRequests] GET /loan-requests error:', err);
+      toast.error('Failed to load loan requests');
+      setRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCaches();
+    fetchRequests();
+  }, [fetchCaches, fetchRequests]);
+
+  // ── Helper: resolve Member, Branch, Product details ────────────────────────
+  const getMemberDetails = (item) => {
+    const r = item?.raw || item || {};
+    const mId = String(r.member_id || r.memberId || r.MemberId || '').toLowerCase();
+    const found = membersCache.find(
+      (m) =>
+        String(m._id || m.id || '').toLowerCase() === mId ||
+        String(m.memberId || m.member_id || '').toLowerCase() === mId
+    );
+
+    const firstName = r.FirstName || found?.FirstName || found?.firstname || '';
+    const lastName = r.LastName || found?.LastName || found?.lastname || '';
+    let name = `${firstName} ${lastName}`.trim() || r.memberName || r.MemberName || r.name || '';
+    if (!name) name = mId ? `Member (${mId.slice(0, 8)})` : 'N/A';
+
+    const displayMemberId =
+      found?.memberId || found?.member_id || found?.MemberNo || r.memberId || r.MemberId || '—';
+
+    return { name, displayMemberId, found };
+  };
+
+  const getBranchName = (item) => {
+    const r = item?.raw || item || {};
+    if (r.branchName || r.branch_name) return r.branchName || r.branch_name;
+    const bId = String(r.branch_id || r.branchId || r.BranchId || '').toLowerCase();
+    const found = branchesCache.find((b) => String(b._id || b.id || '').toLowerCase() === bId);
+    return found?.BranchName || found?.branchName || found?.name || bId || '—';
+  };
+
+  const getProductName = (item) => {
+    const r = item?.raw || item || {};
+    if (r.selectedLoan || r.productName || r.product_name) return r.selectedLoan || r.productName || r.product_name;
+    const pId = String(r.loan_product_id || r.productId || r.LoanProductId || '').toLowerCase();
+    const found = productsCache.find((p) => String(p._id || p.id || '').toLowerCase() === pId);
+    return found?.ProductName || found?.productName || found?.name || pId || '—';
+  };
+
+  // ── Status Update: POST /loan-requests/<mongo_id> ────────────────────────
+  const handleStatusUpdate = async (requestItem, newStatus) => {
+    const r = requestItem?.raw || {};
+    // Extract MongoDB _id directly (24-char hex string or object)
+    const mongoId = String(r._id?.$oid || r._id || r.id || requestItem?.id || '').trim();
+    if (!mongoId) return toast.error('Cannot resolve MongoDB ID for loan request');
+
+    setUpdatingStatus(mongoId);
+    showLoader();
+
+    const url = `${BASE_URL}/loan-requests/${mongoId}`;
+    const numRoi = parseFloat(r.interestRate || r.roi || r.interest_rate || 0);
+
+    const payload = {
+      status: newStatus,
+      interestRate: numRoi,
+    };
+
+    console.log(`[LoanRequests] POST ${url} →`, payload);
+
+    try {
+      const res = await axios.post(url, payload, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      toast.success(res.data?.message || `Loan request ${newStatus} successfully!`);
+      fetchRequests();
+    } catch (err) {
+      console.error('[LoanRequests] Status update error:', err?.response?.data || err.message);
+      toast.error(
+        err?.response?.data?.message || err?.response?.data?.error || err?.message || `Failed to mark request as ${newStatus}`
+      );
+    } finally {
+      setUpdatingStatus(null);
+      hideLoader();
+    }
+  };
+
+  // ── Filtered Data ───────────────────────────────────────────────────────────
+  const filtered = requests.filter((req) => {
+    const r = req.raw || {};
+    const { name, displayMemberId } = getMemberDetails(req);
+    const branch = getBranchName(req);
+    const product = getProductName(req);
+    const agentCode = r.agentCode || r.agent_code || r.createdBy || r.introducer || '';
+
+    // Filter by tab
+    if (statusTab !== 'ALL' && req.status !== statusTab.toLowerCase()) {
+      return false;
+    }
+
+    // Search query
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      const match =
+        name.toLowerCase().includes(q) ||
+        displayMemberId.toLowerCase().includes(q) ||
+        branch.toLowerCase().includes(q) ||
+        product.toLowerCase().includes(q) ||
+        agentCode.toLowerCase().includes(q) ||
+        req.serialNo.toLowerCase().includes(q) ||
+        req.id.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+
+    return true;
+  });
+
+  // KPI Counters
+  const counts = {
+    ALL: requests.length,
+    pending: requests.filter((r) => r.status === 'pending').length,
+    approved: requests.filter((r) => ['approved', 'active'].includes(r.status)).length,
+    rejected: requests.filter((r) => r.status === 'rejected').length,
+  };
+
+  return (
+    <div className="p-4 sm:p-6 bg-slate-50 min-h-screen space-y-6">
+      {/* Top Header Card */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <CreditCard className="w-6 h-6 text-purple-600" />
+            Loan Requests
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">
+            Review, approve, or reject member loan applications
+          </p>
+        </div>
+        <button
+          onClick={fetchRequests}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-semibold transition disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {STATUS_TABS.map((tab) => {
+          const icons = {
+            ALL: <Users className="w-5 h-5 text-purple-600" />,
+            pending: <Clock className="w-5 h-5 text-amber-600" />,
+            approved: <CheckCircle className="w-5 h-5 text-emerald-600" />,
+            rejected: <XCircle className="w-5 h-5 text-red-600" />,
+          };
+          const bg = {
+            ALL: 'bg-purple-50',
+            pending: 'bg-amber-50',
+            approved: 'bg-emerald-50',
+            rejected: 'bg-red-50',
+          };
+          const isSelected = statusTab === tab.key;
+          return (
+            <div
+              key={tab.key}
+              onClick={() => setStatusTab(tab.key)}
+              className={`bg-white rounded-2xl p-4 border cursor-pointer transition shadow-sm ${
+                isSelected
+                  ? 'border-purple-600 ring-2 ring-purple-600/20'
+                  : 'border-gray-100 hover:border-gray-200'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className={`p-2.5 rounded-xl ${bg[tab.key]}`}>{icons[tab.key]}</span>
+                <span className="text-2xl font-extrabold text-gray-900">{counts[tab.key]}</span>
+              </div>
+              <div className="mt-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                {tab.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Main Table Card */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Filter bar */}
+        <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex gap-2 flex-wrap text-xs">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setStatusTab(tab.key)}
+                className={`px-3 py-1.5 rounded-xl font-bold transition ${
+                  statusTab === tab.key
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {tab.label} ({counts[tab.key]})
+              </button>
+            ))}
+          </div>
+
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Search member, loan, branch..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600/20 text-xs"
+            />
+          </div>
+        </div>
+
+        {/* Table Content */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-16 text-purple-600">
+            <Loader className="w-8 h-8 animate-spin mb-2" />
+            <p className="text-sm font-medium text-gray-600">Loading loan requests...</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50/70 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  <th className="py-3.5 px-4">Ref. ID</th>
+                  <th className="py-3.5 px-4">Member</th>
+                  <th className="py-3.5 px-4">Loan Details</th>
+                  <th className="py-3.5 px-4">Amount & EMI</th>
+                  <th className="py-3.5 px-4">Branch</th>
+                  <th className="py-3.5 px-4">Agent Code</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="text-center py-12 text-gray-400">
+                      <div className="flex flex-col items-center gap-2">
+                        <AlertCircle className="w-8 h-8 text-gray-300" />
+                        <span>No loan requests found.</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((item) => {
+                    const r = item.raw || {};
+                    const { name, displayMemberId } = getMemberDetails(item);
+                    const branch = getBranchName(item);
+                    const product = getProductName(item);
+                    const isUpdating = updatingStatus === item.id;
+                    const amount = r.requestedAmount || r.loanAmount || 0;
+                    const tenure = r.requestedTenure || r.loanTenure || '—';
+                    const agentCode = r.agentCode || r.agent_code || r.createdBy || r.introducer || '—';
+
+                    return (
+                      <tr key={item.id} className="hover:bg-purple-50/30 transition">
+                        <td className="py-3.5 px-4 font-semibold text-purple-700 text-xs">
+                          {item.serialNo}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-semibold text-gray-900">{name}</div>
+                          <div className="text-xs text-gray-400 font-mono">ID: {displayMemberId}</div>
+                        </td>
+                        <td className="py-3.5 px-4 text-xs">
+                          <div className="font-bold text-gray-800">{product}</div>
+                          <div className="text-gray-400">Tenure: {tenure} {r.durationIn || 'Months'}</div>
+                        </td>
+                        <td className="py-3.5 px-4 text-xs">
+                          <div className="font-bold text-emerald-700 text-sm">
+                            ₹{Number(amount).toLocaleString('en-IN')}
+                          </div>
+                          {r.emi && <div className="text-gray-500 font-medium">EMI: ₹{r.emi}</div>}
+                        </td>
+                        <td className="py-3.5 px-4 text-xs font-medium text-gray-700">
+                          {branch}
+                        </td>
+                        <td className="py-3.5 px-4 text-xs">
+                          <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-mono font-bold">
+                            {agentCode}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <StatusBadge status={item.status} />
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setSelectedRequest(item)}
+                              className="p-1.5 rounded-lg text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition"
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+
+                            {item.status !== 'approved' && item.status !== 'active' && (
+                              <button
+                                disabled={isUpdating}
+                                onClick={() => handleStatusUpdate(item, 'approved')}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center gap-1 transition disabled:opacity-50"
+                              >
+                                {isUpdating ? (
+                                  <Loader className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Check className="w-3 h-3" />
+                                )}
+                                Approve
+                              </button>
+                            )}
+
+                            {item.status !== 'rejected' && (
+                              <button
+                                disabled={isUpdating}
+                                onClick={() => handleStatusUpdate(item, 'rejected')}
+                                className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold flex items-center gap-1 transition disabled:opacity-50"
+                              >
+                                {isUpdating ? (
+                                  <Loader className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <X className="w-3 h-3" />
+                                )}
+                                Reject
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── View Details Modal ───────────────────────────────────────────────── */}
+      {selectedRequest && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative my-8">
+            <button
+              onClick={() => setSelectedRequest(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-gray-900 text-base">
+                  Loan Application Details
+                </h3>
+                <p className="text-xs text-gray-400 font-mono">
+                  Ref: {selectedRequest.serialNo} | ID: {selectedRequest.id}
+                </p>
+              </div>
+            </div>
+
+            {(() => {
+              const r = selectedRequest.raw || {};
+              const { name, displayMemberId } = getMemberDetails(selectedRequest);
+              const branch = getBranchName(selectedRequest);
+              const product = getProductName(selectedRequest);
+
+              const rows = [
+                ['Member Name', name],
+                ['Member ID', displayMemberId],
+                ['Member Type', r.memberType || 'Ordinary'],
+                ['Branch', branch],
+                ['Loan Product', product],
+                ['Requested Amount', `₹${Number(r.requestedAmount || r.loanAmount || 0).toLocaleString('en-IN')}`],
+                ['Requested Tenure', `${r.requestedTenure || r.loanTenure || '—'} ${r.durationIn || 'Months'}`],
+                ['Frequency', r.frequency || '—'],
+                ['Interest Type', r.interestType || 'Flat'],
+                ['ROI (%)', `${r.roi || 0}%`],
+                ['Calculated EMI', r.emi ? `₹${r.emi}` : '—'],
+                ['Loan Purpose', r.loanPurpose || '—'],
+                ['Guarantor Type', r.guarantorSelect || '—'],
+                ['Guarantor Name', r.guarantorName ? `${r.guarantorName} (ID: ${r.guarantorId || '—'})` : '—'],
+                ['Agent Code', r.agentCode || r.agent_code || r.createdBy || r.introducer || '—'],
+                ['Agent Name', r.introducerName || '—'],
+                ['Status', selectedRequest.status],
+                ['Applied Date', selectedRequest.createdAt],
+              ];
+
+              return (
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs divide-y sm:divide-y-0 divide-gray-100">
+                  {rows.map(([label, val]) => (
+                    <div key={label} className="flex justify-between items-center py-2 px-3 bg-gray-50/60 rounded-xl">
+                      <span className="font-semibold text-gray-500">{label}</span>
+                      <span className="font-bold text-gray-800 text-right max-w-[60%] break-words">
+                        {label === 'Status' ? <StatusBadge status={val} /> : val}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            <div className="mt-6 flex justify-between items-center gap-3 pt-4 border-t border-gray-100">
+              <div className="flex gap-2">
+                {selectedRequest.status !== 'approved' && selectedRequest.status !== 'active' && (
+                  <button
+                    onClick={() => {
+                      handleStatusUpdate(selectedRequest, 'approved');
+                      setSelectedRequest(null);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                  >
+                    <Check className="w-4 h-4" />
+                    Approve Request
+                  </button>
+                )}
+
+                {selectedRequest.status !== 'rejected' && (
+                  <button
+                    onClick={() => {
+                      handleStatusUpdate(selectedRequest, 'rejected');
+                      setSelectedRequest(null);
+                    }}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                  >
+                    <X className="w-4 h-4" />
+                    Reject Request
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={() => setSelectedRequest(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default LoanRequests;

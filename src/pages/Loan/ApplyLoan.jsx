@@ -55,6 +55,7 @@ const ApplyLoan = () => {
 
   // Member Details
   const [memberId, setMemberId] = useState('');
+  const [memberMongoId, setMemberMongoId] = useState('');
   const [memberName, setMemberName] = useState('');
   const [memberType, setMemberType] = useState('');
   const [age, setAge] = useState('');
@@ -67,16 +68,17 @@ const ApplyLoan = () => {
   const [guarantorAge, setGuarantorAge] = useState('');
 
   // Loan Details
-  const [loanAmount, setLoanAmount] = useState('0');
-  const [loanTenure, setLoanTenure] = useState('0');
+  const [loanAmount, setLoanAmount] = useState('');
+  const [loanTenure, setLoanTenure] = useState('');
   const [frequency, setFrequency] = useState('');
-  const [interestType, setInterestType] = useState('Flat');
-  const [roi, setRoi] = useState('0');
-  const [emi, setEmi] = useState('0');
+  const [interestType, setInterestType] = useState('');
+  const [roi, setRoi] = useState('');
+  const [emi, setEmi] = useState('');
   const [loanPurpose, setLoanPurpose] = useState('');
 
   // Introducer Details
   const [introducer, setIntroducer] = useState('');
+  const [introducerMongoId, setIntroducerMongoId] = useState('');
   const [introducerName, setIntroducerName] = useState('');
 
   // Dropdown options
@@ -141,7 +143,7 @@ const ApplyLoan = () => {
     const freqFactor = FREQUENCY_MAP[frequency] || 12;
 
     if (!P || !R || !T || P <= 0 || R <= 0 || T <= 0 || !frequency) {
-      setEmi('0');
+      setEmi('');
       return;
     }
 
@@ -197,7 +199,7 @@ const ApplyLoan = () => {
       }
       return null;
     } catch (err) {
-      console.error('[ApplyLoan] Error searching member API:', err);
+      console.warn('[ApplyLoan] Member search direct endpoint not available, falling back to loaded members list:', err?.message);
       return null;
     }
   };
@@ -240,12 +242,15 @@ const ApplyLoan = () => {
 
       if (match) {
         const { fullName, type, age: ageVal } = extractMemberData(match);
+        const mId = match._id || match.id || match.member_id || match.memberId || trimmed;
+        setMemberMongoId(mId);
         setMemberName(fullName || '');
         setMemberType(type || 'Regular');
         setAge(ageVal || '');
         toast.success(`Member Found: ${fullName || trimmed}`);
       } else {
         // Do not give any details if Member ID is not matched
+        setMemberMongoId('');
         setMemberName('');
         setMemberType('');
         setAge('');
@@ -264,6 +269,7 @@ const ApplyLoan = () => {
   const selectMemberSuggestion = (m) => {
     const mid = m.memberId || m.MemberId || m._id || m.id || '';
     setMemberId(mid);
+    setMemberMongoId(m._id || m.id || m.member_id || m.memberId || mid);
     const { fullName, type, age: ageVal } = extractMemberData(m);
     setMemberName(fullName);
     setMemberType(type);
@@ -348,34 +354,79 @@ const ApplyLoan = () => {
 
     if (!trimmed) {
       setIntroducerName('');
+      setIntroducerMongoId('');
       setShowIntroducerDropdown(false);
-      return toast.error('Please enter full Introducer ID to search');
+      return toast.error('Please enter Agent Code to search');
     }
 
     setFetchingMember(true);
     setShowIntroducerDropdown(false);
 
     try {
-      let match = await fetchMemberFromApi(trimmed);
+      // Fetch both members and agent requests
+      const [resMem, resAgents] = await Promise.all([
+        axios.get(`${BASE}/get-members`).catch(() => ({ data: [] })),
+        axios.get(`${BASE}/agent-requests`).catch(() => ({ data: [] })),
+      ]);
 
-      if (!match && allMembers && allMembers.length > 0) {
-        match = allMembers.find((m) => {
-          const mid = String(m.memberId || m.MemberId || m._id || m.id || '').toLowerCase();
-          return mid === trimmed.toLowerCase();
+      let rawMembers = Array.isArray(resMem.data)
+        ? resMem.data
+        : resMem.data?.data || resMem.data?.members || [];
+      let rawAgents = Array.isArray(resAgents.data)
+        ? resAgents.data
+        : resAgents.data?.data || resAgents.data?.requests || [];
+
+      const searchCode = trimmed.toLowerCase();
+
+      // Find match in approved agents or approved members
+      let match = rawAgents.find((a) => {
+        const aStatus = String(a.status || a.Status || a.agentStatus || '').toLowerCase();
+        const isApproved = ['approved', 'active', 'accepted', 'verified'].includes(aStatus);
+        const codes = [
+          a.agent_code, a.agentCode, a.AgentCode,
+          a.member_code, a.memberId, a.member_id, a._id, a.code
+        ].map((v) => String(v || '').toLowerCase().trim());
+        return isApproved && codes.includes(searchCode);
+      });
+
+      let matchedMember = null;
+
+      if (match) {
+        // If matched from agent-requests, find the corresponding member object in rawMembers for full details
+        const mId = String(match.member_id?.$oid || match.member_id || match.memberId || match.MemberId || match._id || '');
+        matchedMember = rawMembers.find((m) =>
+          String(m._id || m.id || m.memberId || '').toLowerCase() === mId.toLowerCase()
+        ) || match;
+      } else {
+        // Find directly in rawMembers by agentCode or memberId
+        matchedMember = rawMembers.find((m) => {
+          const mStatus = String(m.status || m.Status || m.agentStatus || '').toLowerCase();
+          const isApproved = ['approved', 'active', 'accepted', 'verified'].includes(mStatus);
+          const ids = [
+            m.agentCode, m.agent_code, m.AgentCode,
+            m.memberId, m.member_id, m.MemberNo, m.memberNo,
+            m.MemberCode, m.memberCode, m._id
+          ].map((v) => String(v || '').toLowerCase().trim());
+          return isApproved && ids.includes(searchCode);
         });
       }
 
-      if (match) {
-        const { fullName } = extractMemberData(match);
-        setIntroducerName(fullName || '');
-        toast.success(`Introducer Found: ${fullName || trimmed}`);
+      if (matchedMember) {
+        const { fullName } = extractMemberData(matchedMember);
+        const iId = matchedMember._id || matchedMember.id || matchedMember.member_id || matchedMember.memberId || trimmed;
+        setIntroducerMongoId(iId);
+        setIntroducerName(fullName || match?.member_name || match?.MemberName || trimmed);
+        toast.success(`Approved Agent Found: ${fullName || trimmed}`);
       } else {
+        setIntroducerMongoId('');
         setIntroducerName('');
-        toast.error(`No introducer found for ID "${trimmed}". Please enter valid full ID.`);
+        toast.error(`Agent Code "${trimmed}" is invalid or not an approved Agent.`);
       }
     } catch (err) {
+      console.error('[ApplyLoan] Error searching Agent Code:', err);
+      setIntroducerMongoId('');
       setIntroducerName('');
-      toast.error(`Error searching Introducer ID "${trimmed}"`);
+      toast.error(`Error searching Agent Code "${trimmed}"`);
     } finally {
       setFetchingMember(false);
     }
@@ -384,9 +435,43 @@ const ApplyLoan = () => {
   const selectIntroducerSuggestion = (m) => {
     const mid = m.memberId || m.MemberId || m._id || m.id || '';
     setIntroducer(mid);
+    setIntroducerMongoId(m._id || m.id || m.member_id || m.memberId || mid);
     const { fullName } = extractMemberData(m);
     setIntroducerName(fullName);
     setShowIntroducerDropdown(false);
+  };
+
+  // ── Reset Form to Fresh State ──────────────────────────────────────────────
+  const resetForm = () => {
+    setDate(today);
+    setBranchName('');
+    setProductType('Loan');
+    setSelectedLoan('');
+    setDurationIn('');
+
+    setMemberId('');
+    setMemberMongoId('');
+    setMemberName('');
+    setMemberType('');
+    setAge('');
+
+    setGuarantorSelect('');
+    setGuarantorId('');
+    setGuarantorName('');
+    setGuarantorType('');
+    setGuarantorAge('');
+
+    setLoanAmount('');
+    setLoanTenure('');
+    setFrequency('');
+    setInterestType('');
+    setRoi('');
+    setEmi('');
+    setLoanPurpose('');
+
+    setIntroducer('');
+    setIntroducerMongoId('');
+    setIntroducerName('');
   };
 
   // ── Handle Form Submission ──────────────────────────────────────────────────
@@ -396,11 +481,43 @@ const ApplyLoan = () => {
     if (!branchName) return toast.error('Please select Branch Name');
     if (!selectedLoan) return toast.error('Please select Loan Product');
     if (!memberId || !memberName) return toast.error('Please enter Member Details');
+    if (!introducer || !introducer.trim()) return toast.error('Please enter Agent Code / Introducer ID');
     if (!loanAmount || parseFloat(loanAmount) <= 0) return toast.error('Please enter valid Loan Amount');
 
     setSubmitting(true);
 
+    // Resolve IDs
+    const bObj = branches.find((b) => {
+      const name = b.BranchName || b.branchName || b.name || b.branch_name || '';
+      return name === branchName || b._id === branchName || b.BranchCode === branchName;
+    });
+    const resolvedBranchId = bObj?._id || bObj?.id || bObj?.BranchCode || branchName;
+
+    const pObj = loanProducts.find((p) => {
+      const pName = p.ProductName || p.productName || p.name || p.title || p.ProductTitle || '';
+      return pName === selectedLoan || p._id === selectedLoan || p.id === selectedLoan;
+    });
+    const resolvedLoanProductId = pObj?._id || pObj?.id || pObj?.productId || selectedLoan;
+
     const payload = {
+      // ── Required fields for POST /loan-requests ─────────────────────────
+      member_id: memberMongoId || memberId,
+      branch_id: resolvedBranchId,
+      loan_product_id: resolvedLoanProductId,
+      requestedAmount: parseFloat(loanAmount) || Number(loanAmount) || 0,
+      requestedTenure: parseInt(loanTenure, 10) || Number(loanTenure) || 0,
+
+      // ── Agent / CreatedBy ID & Code fields (all variations for backend compatibility) ──
+      createdBy: introducer || introducerMongoId || '',
+      created_by: introducer || introducerMongoId || '',
+      agent_id: introducerMongoId || introducer || '',
+      agentId: introducerMongoId || introducer || '',
+      agent_code: introducer || '',
+      agentCode: introducer || '',
+      introducer_id: introducerMongoId || introducer || '',
+      introducer_code: introducer || '',
+
+      // ── Additional contextual fields for full form completeness ────────
       date,
       branchName,
       productType,
@@ -420,6 +537,9 @@ const ApplyLoan = () => {
       frequency,
       interestType,
       roi,
+      interestRate:   parseFloat(roi) || Number(roi) || 0,
+      interest_rate:  parseFloat(roi) || Number(roi) || 0,
+      rateOfInterest: parseFloat(roi) || Number(roi) || 0,
       emi,
       loanPurpose,
       introducer,
@@ -427,24 +547,19 @@ const ApplyLoan = () => {
       status: 'Pending',
     };
 
-    console.log('[ApplyLoan] Submitting payload:', payload);
+    console.log('[ApplyLoan] Submitting payload to POST /loan-requests:', payload);
 
     try {
-      const res = await axios.post(`${BASE}/apply-loan`, payload, {
+      const res = await axios.post(`${BASE}/loan-requests`, payload, {
         headers: { 'Content-Type': 'application/json' },
       });
-      toast.success(res.data?.message || 'Loan application submitted successfully!');
+      toast.success(res.data?.message || 'Loan request submitted successfully!');
+      resetForm();
     } catch (err) {
-      console.error('[ApplyLoan] Submit error:', err);
-      // Fallback post if specific endpoint doesn't exist yet
-      try {
-        const res2 = await axios.post(`${BASE}/loan-applications`, payload, {
-          headers: { 'Content-Type': 'application/json' },
-        });
-        toast.success(res2.data?.message || 'Loan application submitted successfully!');
-      } catch (err2) {
-        toast.success('Loan application generated successfully!');
-      }
+      console.error('[ApplyLoan] POST /loan-requests submit error:', err?.response?.data || err.message);
+      toast.error(
+        err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Failed to submit loan request'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -789,7 +904,7 @@ const ApplyLoan = () => {
                       type="number"
                       value={loanAmount}
                       onChange={(e) => setLoanAmount(e.target.value)}
-                      placeholder="0"
+                      placeholder="Enter Loan Amount"
                       className={inputCls}
                     />
                   </div>
@@ -800,7 +915,7 @@ const ApplyLoan = () => {
                       type="number"
                       value={loanTenure}
                       onChange={(e) => setLoanTenure(e.target.value)}
-                      placeholder="0"
+                      placeholder="Enter Tenure"
                       className={inputCls}
                     />
                   </div>
@@ -830,6 +945,7 @@ const ApplyLoan = () => {
                       onChange={(e) => setInterestType(e.target.value)}
                       className={inputCls}
                     >
+                      <option value="">--Select--</option>
                       <option value="Flat">Flat</option>
                       <option value="Declining Balance">Declining Balance</option>
                     </select>
@@ -841,7 +957,7 @@ const ApplyLoan = () => {
                       type="number"
                       value={roi}
                       onChange={(e) => setRoi(e.target.value)}
-                      placeholder="0"
+                      placeholder="Enter ROI (%)"
                       className={inputCls}
                       step="0.01"
                     />
@@ -856,7 +972,7 @@ const ApplyLoan = () => {
                       type="text"
                       value={emi}
                       onChange={(e) => setEmi(e.target.value)}
-                      placeholder="0"
+                      placeholder="Calculated EMI"
                       className={`${inputCls} font-bold text-indigo-700 bg-indigo-50/50`}
                     />
                   </div>
@@ -875,13 +991,15 @@ const ApplyLoan = () => {
               </div>
             </div>
 
-            {/* ── Banner 5: Introducer Details ─────────────────────────────── */}
+            {/* ── Banner 5: Agent Details ─────────────────────────────── */}
             <div className="rounded border border-gray-200">
-              <SectionBanner title="Introducer Details" />
+              <SectionBanner title="Agent Details" />
               <div className="p-4 bg-white">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                   <div>
-                    <label className={labelCls}>Introducer</label>
+                    <label className={labelCls}>
+                      Agent Code <span className="text-red-500">*</span>
+                    </label>
                     <div className="relative flex items-center gap-1">
                       <input
                         type="text"
@@ -896,7 +1014,7 @@ const ApplyLoan = () => {
                         onBlur={() => {
                           setTimeout(() => setShowIntroducerDropdown(false), 200);
                         }}
-                        placeholder="Enter Introducer ID"
+                        placeholder="Enter Agent Code (e.g. AG002)"
                         className={inputCls}
                       />
                       <button
@@ -904,7 +1022,7 @@ const ApplyLoan = () => {
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={handleSearchIntroducer}
                         className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
-                        title="Search Introducer"
+                        title="Search Agent Code"
                       >
                         <Search className="w-3.5 h-3.5" />
                         <span>Search</span>
@@ -913,7 +1031,7 @@ const ApplyLoan = () => {
                       {showIntroducerDropdown && introducerSuggestions.length > 0 && (
                         <ul className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-300 rounded shadow-xl max-h-56 overflow-y-auto text-xs divide-y divide-gray-100 ring-1 ring-black/5">
                           {introducerSuggestions.map((m, idx) => {
-                            const mid = m.memberId || m.MemberId || m._id || m.id || '';
+                            const mid = m.agentCode || m.agent_code || m.memberId || m.MemberId || m._id || m.id || '';
                             const { fullName } = extractMemberData(m);
                             return (
                               <li
@@ -934,12 +1052,12 @@ const ApplyLoan = () => {
                   </div>
 
                   <div>
-                    <label className={labelCls}>Introducer Name</label>
+                    <label className={labelCls}>Agent Name</label>
                     <input
                       type="text"
                       value={introducerName}
                       onChange={(e) => setIntroducerName(e.target.value)}
-                      placeholder="Introducer Name"
+                      placeholder="Agent Name"
                       className={inputCls}
                     />
                   </div>

@@ -106,8 +106,9 @@ const CreateAgent = () => {
   const [memberLookupLoading, setMemberLookupLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // ── Designations ───────────────────────────────────────────────────────────
+  // ── Designations & Branches ────────────────────────────────────────────────
   const [designations, setDesignations] = useState([]);
+  const [branches, setBranches] = useState([]);
 
   // ── Agent Requests List ────────────────────────────────────────────────────
   const [requests, setRequests] = useState([]);
@@ -124,13 +125,37 @@ const CreateAgent = () => {
       const list = Array.isArray(res.data)
         ? res.data
         : res.data?.data || res.data?.designations || [];
+      console.log('[CreateAgent] Designations raw sample:', list[0]); // verify _id field
       setDesignations(list);
     } catch (err) {
-      console.warn(
-        '[CreateAgent] Could not load designations:',
-        err?.response?.data || err.message
-      );
+      console.warn('[CreateAgent] Could not load designations:', err?.response?.data || err.message);
     }
+  }, []);
+
+  // ── Fetch Branches ─────────────────────────────────────────────────────────
+  const fetchBranches = useCallback(async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/branches`);
+      let list = [];
+      if (Array.isArray(res.data)) list = res.data;
+      else if (Array.isArray(res.data?.data)) list = res.data.data;
+      else if (Array.isArray(res.data?.branches)) list = res.data.branches;
+      console.log('[CreateAgent] Branches raw sample:', list[0]); // verify _id field
+      setBranches(list);
+    } catch (err) {
+      console.warn('[CreateAgent] Could not load branches:', err?.response?.data || err.message);
+    }
+  }, []);
+
+  // ── Preload all-members cache on mount (for table name resolution) ──────────
+  const preloadMembersCache = useCallback(async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/get-members`);
+      let rawList = [];
+      if (Array.isArray(res.data)) rawList = res.data;
+      else if (Array.isArray(res.data?.data)) rawList = res.data.data;
+      window.__allMembersCache = rawList;
+    } catch (_) { /* silent fail */ }
   }, []);
 
   // ── Fetch Agent Requests (GET /agent-requests) ─────────────────────────────
@@ -158,8 +183,54 @@ const CreateAgent = () => {
 
   useEffect(() => {
     fetchDesignations();
+    fetchBranches();
     fetchRequests();
-  }, [fetchDesignations, fetchRequests]);
+    preloadMembersCache();
+  }, [fetchDesignations, fetchBranches, fetchRequests, preloadMembersCache]);
+
+  // ── Helper: extract branch name same way as BranchList.jsx ─────────────────
+  const getBranchName = (b) => {
+    if (!b || typeof b !== 'object') return '';
+    // same priority as BranchList getField
+    const candidates = ['branchname','branch_name','name','title','showroom','showroomname','branch','branch_title','locationname'];
+    for (const key of candidates) {
+      const found = Object.keys(b).find(k => k.toLowerCase().replace(/[^a-z0-9]/g,'') === key.replace(/[^a-z0-9]/g,''));
+      if (found && b[found] && String(b[found]).trim()) return String(b[found]).trim();
+    }
+    // last resort: first non-id string field
+    for (const [k, v] of Object.entries(b)) {
+      const lk = k.toLowerCase();
+      if (typeof v === 'string' && v.trim() && !lk.includes('id') && !lk.includes('code') && !lk.includes('status') && !lk.includes('date') && !lk.includes('created') && !lk.includes('phone') && !lk.includes('mobile')) {
+        return v.trim();
+      }
+    }
+    return '';
+  };
+
+  // ── Helper: resolve member's OWN ID (never MemberId capital M which is introducer ID) ──
+  const getMemberOwnId = (m) => {
+    if (!m || typeof m !== 'object') return '';
+    if (m.agentCode) return String(m.agentCode).trim();
+    if (m.agent_code) return String(m.agent_code).trim();
+    if (m.AgentCode) return String(m.AgentCode).trim();
+    if (m.memberId) return String(m.memberId).trim();
+    if (m.member_id) return String(m.member_id).trim();
+    if (m.MemberNo) return String(m.MemberNo).trim();
+    if (m.memberNo) return String(m.memberNo).trim();
+    if (m.member_no) return String(m.member_no).trim();
+    if (m.MemberCode) return String(m.MemberCode).trim();
+    if (m.memberCode) return String(m.memberCode).trim();
+
+    // Smart scan string fields for zero-padded number (e.g. 0010001) excluding MemberId (introducer)
+    for (const [k, v] of Object.entries(m)) {
+      const lk = k.toLowerCase();
+      if (lk === 'memberid') continue; // skip introducer ID field
+      if (typeof v === 'string' && /^0\d{4,11}$/.test(v.trim())) {
+        return v.trim();
+      }
+    }
+    return String(m._id || m.id || '').trim();
+  };
 
   // ── Member Lookup by Member ID ─────────────────────────────────────────────
   const handleMemberLookup = async () => {
@@ -168,49 +239,114 @@ const CreateAgent = () => {
     setMemberLookupLoading(true);
     setMemberInfo(null);
     try {
-      // ── GET /get-members → filter by custom member ID client-side ──────
+      // ── GET /get-members → cache for table name resolution ─────────────
       const res = await axios.get(`${BASE_URL}/get-members`);
       let rawList = [];
       if (Array.isArray(res.data)) rawList = res.data;
       else if (Array.isArray(res.data?.data)) rawList = res.data.data;
       else if (res.data?.data && typeof res.data.data === 'object') rawList = [res.data.data];
 
-      // Match by custom MemberId field — same logic as MemberList display ID
+      // Store globally so the requests table can resolve member names by _id
+      window.__allMembersCache = rawList;
+
+      const search = mid.toLowerCase().trim();
+
+      // Match by member's OWN ID or MongoDB _id (NEVER m.MemberId which is introducer ID!)
       const d = rawList.find((m) => {
-        // MemberList shows: item.memberId || item.MemberId || item._id
-        const idA = String(m.memberId  || '').toLowerCase();
-        const idB = String(m.MemberId  || '').toLowerCase();
-        const idC = String(m.member_id || '').toLowerCase();
-        const search = mid.toLowerCase();
-        return idA === search || idB === search || idC === search;
+        const ownId = getMemberOwnId(m).toLowerCase();
+        const mongoId = String(m._id || m.id || '').toLowerCase();
+        return ownId === search || mongoId === search;
       });
+
+      // Debug — log all member IDs + the matched member so mismatches are visible
+      console.group('%c[CreateAgent] Member Lookup Debug', 'color:#54578C;font-weight:bold');
+      console.log('Searched for ID:', mid);
+      console.log('All members in get-members (first 20):',
+        rawList.slice(0, 20).map(m => ({
+          ownId: getMemberOwnId(m),
+          MemberId_introducer: m.MemberId || '—',  // ← introducer's ID
+          _id:       m._id,
+          name:      (`${m.FirstName||''} ${m.LastName||''}`).trim() || '?',
+          type:      m.MemberCategory || m.memberCategory || '—',
+          status:    m.status || m.Status || '—',
+        }))
+      );
+      console.log('Matched member raw:', d);
+      console.groupEnd();
 
       if (!d) {
         toast.error(`Member ID "${mid}" not found.`);
         return;
       }
 
-      // ── Name: mirror EXACTLY what MemberList.jsx shows ────────────────
-      // MemberList: let name = `${firstName} ${lastName}`.trim();
-      const firstName = d.FirstName || d.firstname || d.first_name || '';
-      const lastName  = d.LastName  || d.lastname  || d.last_name  || '';
-      const memberName = `${firstName} ${lastName}`.trim()
-        || d.MemberName || d.memberName || d.name || d.Name || '';
+      // Check approval status
+      const memberStatus = (d.status || d.Status || '').toLowerCase();
+      if (['pending', 'rejected'].includes(memberStatus)) {
+        toast.error(`Member ID "${mid}" is ${memberStatus}. Only approved members can be registered as Agents.`);
+        return;
+      }
 
+      // ── Check if member is ALREADY an Agent (or has active request) ──────
+      const mongoIdStr = String(d._id || d.id || '').toLowerCase();
+      const searchedIdStr = mid.toLowerCase();
+
+      const existingAgent = requests.find((req) => {
+        const reqMemberId = String(req.member_id?.$oid || req.member_id || req.memberId || req.MemberId || '').toLowerCase();
+        const reqMemberCode = String(req.member_code || req.MemberCode || req.member_no || '').toLowerCase();
+        const reqStatus = String(req.status || req.Status || '').toLowerCase();
+
+        const isMatch = (reqMemberId && (reqMemberId === mongoIdStr || reqMemberId === searchedIdStr)) || (reqMemberCode && reqMemberCode === searchedIdStr);
+        return isMatch && reqStatus !== 'rejected';
+      });
+
+      if (existingAgent) {
+        const statusLabel = (existingAgent.status || existingAgent.Status || 'Active');
+        toast.error(`Member ID "${mid}" is already an Agent (Status: ${statusLabel}). Duplicate agent registration is not allowed.`);
+        return;
+      }
+
+      // Member type (MemberCategory / MemberType)
       const memberType =
+        d.MemberCategory || d.memberCategory ||
         d.MemberType || d.member_type || d.type ||
         d.Category   || d.category    || 'Ordinary';
+
+      // ── Name: use FirstName + LastName ONLY (never MemberName which is introducer's name)
+      const firstName = d.FirstName || d.firstname || d.first_name || '';
+      const lastName  = d.LastName  || d.lastname  || d.last_name  || '';
+      const memberName = `${firstName} ${lastName}`.trim() || mid;
+
       const age        = d.Age  || d.age  || '';
-      const branchId   = d.BranchCode || d.branchCode || d.branch_id || d.BranchId || '';
+      const branchCode = d.BranchCode || d.branchCode || d.branch_id || d.BranchId || '';
       const branchName = d.BranchName || d.branchName || '';
 
       // ── mongoId: the _id field that the backend expects ────────────────
       const mongoId = d._id || d.id || '';
 
-      setMemberInfo({ memberName, memberType, age, branchId, branchName, mongoId, raw: d });
+      // Auto-match branch Mongo ID if available in branches list or in member object
+      let matchedBranchMongoId = '';
+      if (d.branch_mongo_id || d.branchMongoId) {
+        matchedBranchMongoId = d.branch_mongo_id || d.branchMongoId;
+      } else if (branches.length > 0) {
+        const matched = branches.find(b => {
+          const bId = String(b._id || b.id || '');
+          const bCode = String(b.BranchCode || b.branchCode || b.branch_code || '');
+          const bName = String(b.BranchName || b.branchName || '').toLowerCase();
+          return (
+            (branchCode && bCode === String(branchCode)) ||
+            (branchName && bName === String(branchName).toLowerCase()) ||
+            (branchCode && bId === String(branchCode))
+          );
+        });
+        if (matched) {
+          matchedBranchMongoId = matched._id || matched.id || '';
+        }
+      }
+
+      setMemberInfo({ memberName, memberType, age, branchId: branchCode, branchName, mongoId, raw: d });
       setFormData((prev) => ({
         ...prev,
-        branch_id: branchId || prev.branch_id,
+        branch_id: matchedBranchMongoId || prev.branch_id,
       }));
     } catch (err) {
       console.error('[CreateAgent] Member lookup error:', err?.response?.data || err.message);
@@ -236,21 +372,94 @@ const CreateAgent = () => {
     if (!member_id.trim()) return toast.error('Member ID is required');
     if (!memberInfo) return toast.error('Please search and select a valid Member first');
     if (!memberInfo.mongoId) return toast.error('Could not resolve Member MongoDB ID. Please re-search.');
+    if (!formData.introducer_code.trim()) return toast.error('Agent Code is required');
     if (!branch_id.trim()) return toast.error('Branch ID is required');
     if (!designation_id) return toast.error('Please select a Designation');
 
     setSubmitting(true);
     showLoader();
     try {
+      // ── Validate Agent Code (if provided) ─────────────────────────────────
+      if (formData.introducer_code.trim()) {
+        const introCode = formData.introducer_code.trim().toLowerCase();
+
+        const [resMem, resAgents] = await Promise.all([
+          axios.get(`${BASE_URL}/get-members`).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/agent-requests`).catch(() => ({ data: [] })),
+        ]);
+
+        let rawMembers = Array.isArray(resMem.data) ? resMem.data : resMem.data?.data || [];
+        let rawAgents = Array.isArray(resAgents.data)
+          ? resAgents.data
+          : resAgents.data?.data || resAgents.data?.requests || [];
+
+        const validApprovedAgent =
+          rawAgents.some((a) => {
+            const aStatus = String(a.status || a.Status || a.agentStatus || '').toLowerCase();
+            const isApproved = ['approved', 'active', 'accepted', 'verified'].includes(aStatus);
+            const codes = [
+              a.agent_code, a.agentCode, a.AgentCode,
+              a.member_code, a.memberId, a.member_id, a._id, a.code
+            ].map((v) => String(v || '').toLowerCase().trim());
+            return isApproved && codes.includes(introCode);
+          }) ||
+          rawMembers.some((m) => {
+            const mStatus = String(m.status || m.Status || m.agentStatus || '').toLowerCase();
+            const isApproved = ['approved', 'active', 'accepted', 'verified'].includes(mStatus);
+            const ids = [
+              m.agentCode, m.agent_code, m.AgentCode,
+              m.memberId, m.member_id, m.MemberNo, m.memberNo,
+              m.MemberCode, m.memberCode, m._id
+            ].map((v) => String(v || '').toLowerCase().trim());
+            return isApproved && ids.includes(introCode);
+          });
+
+        if (!validApprovedAgent) {
+          toast.error(`Agent Code "${formData.introducer_code}" is invalid or not an approved Agent.`);
+          setSubmitting(false);
+          hideLoader();
+          return;
+        }
+      }
+
+      const selectedBranch = branches.find((b) => String(b._id || b.id || '') === String(branch_id));
+      const bName = getBranchName(selectedBranch) || memberInfo.branchName || '';
+      const bCode = selectedBranch?.BranchCode || selectedBranch?.branchCode || selectedBranch?.branch_code || memberInfo.branchId || '';
+
+      const selectedDesig = designations.find((d) => String(d._id || d.id || '') === String(designation_id));
+      const desigName = selectedDesig?.designation_name || selectedDesig?.designationName || selectedDesig?.name || selectedDesig?.Title || selectedDesig?.DesignationName || '';
+
       const payload = {
-        member_id: memberInfo.mongoId,   // ← MongoDB _id (required by backend)
-        branch_id: branch_id.trim(),
-        designation_id,
+        // toMongoId: safely convert ObjectId object → plain string
+        member_id:      String(memberInfo.mongoId?.$oid || memberInfo.mongoId || ''),
+        branch_id:      String(branch_id?.$oid        || branch_id        || '').trim(),
+        designation_id: String(designation_id?.$oid   || designation_id   || '').trim(),
+
+        // Extra details expected by Flask backend
+        branch_name:      bName,
+        branch_code:      bCode,
+        branchName:       bName,
+        branchCode:       bCode,
+        member_name:      memberInfo.memberName || '',
+        memberName:       memberInfo.memberName || '',
+        designation_name: desigName,
+        designationName:  desigName,
+
         ...(formData.introducer_code
-          ? { introducer_code: formData.introducer_code.trim() }
+          ? {
+              agentCode:       formData.introducer_code.trim(),
+              agent_code:      formData.introducer_code.trim(),
+              AgentCode:       formData.introducer_code.trim(),
+              introducer_code: formData.introducer_code.trim(),
+            }
           : {}),
       };
-      console.log('[CreateAgent] POST /agent-requests payload:', payload);
+      // Verify all 3 are MongoDB _id strings (24-char hex)
+      console.log('%c[CreateAgent] ✅ Payload → POST /agent-requests', 'color:green;font-weight:bold');
+      console.log('  member_id      :', payload.member_id,      '| valid?', /^[a-f\d]{24}$/i.test(payload.member_id));
+      console.log('  branch_id      :', payload.branch_id,      '| valid?', /^[a-f\d]{24}$/i.test(payload.branch_id));
+      console.log('  designation_id :', payload.designation_id, '| valid?', /^[a-f\d]{24}$/i.test(payload.designation_id));
+      console.log('  Full payload:', payload);
       const res = await axios.post(`${BASE_URL}/agent-requests`, payload, {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -397,9 +606,11 @@ const CreateAgent = () => {
                 <input
                   type="text"
                   value={formData.member_id}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, member_id: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setFormData((p) => ({ ...p, member_id: e.target.value }));
+                    // ✅ Bug 1 fix: clear stale member info whenever the ID changes
+                    setMemberInfo(null);
+                  }}
                   onKeyDown={handleKeyDown}
                   placeholder="e.g. 0010000001"
                   className={inputCls + ' flex-1'}
@@ -459,9 +670,11 @@ const CreateAgent = () => {
 
           {/* Row 2 */}
           <div className="flex flex-wrap items-end gap-4 text-xs font-semibold text-gray-700 mt-4">
-            {/* Introducer Code */}
+            {/* Agent Code */}
             <div className="flex flex-col gap-1 min-w-[150px]">
-              <label>Introducer Code</label>
+              <label>
+                Agent Code <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 value={formData.introducer_code}
@@ -471,25 +684,34 @@ const CreateAgent = () => {
                     introducer_code: e.target.value,
                   }))
                 }
-                placeholder="Optional"
+                placeholder="Enter Agent Code"
                 className={inputCls}
               />
             </div>
 
-            {/* Branch ID */}
-            <div className="flex flex-col gap-1 min-w-[160px]">
+            {/* Branch */}
+            <div className="flex flex-col gap-1 min-w-[180px]">
               <label>
-                Branch Id <span className="text-red-500">*</span>
+                Branch <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
+              <select
                 value={formData.branch_id}
                 onChange={(e) =>
                   setFormData((p) => ({ ...p, branch_id: e.target.value }))
                 }
-                placeholder="e.g. BR001"
                 className={inputCls}
-              />
+              >
+                <option value="">--Select Branch--</option>
+                {branches.map((b, i) => {
+                  const bId   = b._id || b.id || i;
+                  const bName = getBranchName(b) || String(bId);
+                  return (
+                    <option key={String(bId)} value={String(bId)}>
+                      {bName}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             {/* Designation */}
@@ -668,12 +890,10 @@ const CreateAgent = () => {
           <div className="overflow-x-auto border border-gray-200 rounded-lg overflow-hidden">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-[#2D2E5F] text-white font-bold text-xs uppercase tracking-wider">
+              <tr className="bg-[#2D2E5F] text-white font-bold text-xs uppercase tracking-wider">
                   <th className="py-2.5 px-4">S.No</th>
-                  <th className="py-2.5 px-4">Request ID</th>
-                  <th className="py-2.5 px-4">Member ID</th>
                   <th className="py-2.5 px-4">Member Name</th>
-                  <th className="py-2.5 px-4">Branch ID</th>
+                  <th className="py-2.5 px-4">Branch</th>
                   <th className="py-2.5 px-4">Designation</th>
                   <th className="py-2.5 px-4">Status</th>
                   <th className="py-2.5 px-4 text-center">Actions</th>
@@ -706,20 +926,45 @@ const CreateAgent = () => {
                   </tr>
                 ) : (
                   filtered.map((r, idx) => {
-                    const reqId =
-                      r.request_id || r.id || r._id || `REQ-${idx + 1}`;
-                    const memberId =
-                      r.member_id || r.MemberId || r.memberId || '—';
-                    const memberName =
-                      r.member_name || r.MemberName || r.name || '—';
-                    const branchId =
-                      r.branch_id || r.BranchId || r.branch || '—';
-                    const designation =
-                      r.designation_name ||
-                      r.designationName ||
-                      r.designation ||
-                      r.designation_id ||
-                      '—';
+                    const reqId = r.request_id || r.id || r._id || `REQ-${idx + 1}`;
+
+                    // ── Resolve Member Name ──────────────────────────────────
+                    // Prefer name stored directly in the request (backend enriched)
+                    // Fallback: look up in loaded members list by _id or memberId
+                    let memberName = r.member_name || r.name || '';
+                    if (!memberName && (r.member_id || r.MemberId)) {
+                      const mId = String(r.member_id || r.MemberId || '');
+                      const mem = (window.__allMembersCache || []).find(m =>
+                        String(m._id || m.id || '').toLowerCase() === mId.toLowerCase() ||
+                        getMemberOwnId(m).toLowerCase() === mId.toLowerCase()
+                      );
+                      if (mem) {
+                        const fn = mem.FirstName || mem.firstname || mem.first_name || '';
+                        const ln = mem.LastName  || mem.lastname  || mem.last_name  || '';
+                        memberName = `${fn} ${ln}`.trim() || mId;
+                      } else {
+                        memberName = mId.slice(0, 8) + '...';
+                      }
+                    }
+
+                    // ── Resolve Branch Name ──────────────────────────────────
+                    let branchName = r.branch_name || r.BranchName || '';
+                    if (!branchName && (r.branch_id || r.BranchId)) {
+                      const bId = String(r.branch_id || r.BranchId || '');
+                      const br = branches.find(b => String(b._id || b.id || '') === bId);
+                      branchName = br ? (getBranchName(br) || bId.slice(0, 8) + '...') : bId.slice(0, 8) + '...';
+                    }
+
+                    // ── Resolve Designation Name ─────────────────────────────
+                    let designation = r.designation_name || r.designationName || r.designation || '';
+                    if (!designation && (r.designation_id || r.DesignationId)) {
+                      const dId = String(r.designation_id || r.DesignationId || '');
+                      const des = designations.find(d => String(d._id || d.id || '') === dId);
+                      designation = des
+                        ? (des.designationName || des.designation_name || des.name || dId.slice(0, 8) + '...')
+                        : dId.slice(0, 8) + '...';
+                    }
+
                     const eff = getEffectiveStatus(r);
                     const isUpdating = updatingStatus === reqId;
                     const isEven = idx % 2 === 1;
@@ -736,20 +981,14 @@ const CreateAgent = () => {
                         <td className="py-2.5 px-4 font-medium text-gray-600">
                           {idx + 1}
                         </td>
-                        <td className="py-2.5 px-4 font-mono font-semibold text-[#54578C] text-[11px]">
-                          {reqId}
-                        </td>
                         <td className="py-2.5 px-4 font-semibold text-gray-800">
-                          {memberId}
-                        </td>
-                        <td className="py-2.5 px-4 text-gray-700">
-                          {memberName}
+                          {memberName || '—'}
                         </td>
                         <td className="py-2.5 px-4 text-gray-600">
-                          {branchId}
+                          {branchName || '—'}
                         </td>
                         <td className="py-2.5 px-4 text-gray-700">
-                          {designation}
+                          {designation || '—'}
                         </td>
                         <td className="py-2.5 px-4">
                           <StatusBadge status={eff} />
@@ -836,63 +1075,73 @@ const CreateAgent = () => {
               </div>
             </div>
 
-            <div className="space-y-0 text-xs divide-y divide-gray-50">
-              {[
-                [
-                  'Request ID',
-                  selectedReq.request_id ||
-                    selectedReq.id ||
-                    selectedReq._id ||
-                    '—',
-                ],
-                [
-                  'Member ID',
-                  selectedReq.member_id || selectedReq.MemberId || '—',
-                ],
-                [
-                  'Member Name',
-                  selectedReq.member_name ||
-                    selectedReq.MemberName ||
-                    '—',
-                ],
-                [
-                  'Branch ID',
-                  selectedReq.branch_id || selectedReq.BranchId || '—',
-                ],
-                [
-                  'Designation',
-                  selectedReq.designation_name ||
-                    selectedReq.designationName ||
-                    selectedReq.designation_id ||
-                    '—',
-                ],
-                ['Status', getEffectiveStatus(selectedReq)],
-                [
-                  'Introducer Code',
-                  selectedReq.introducer_code ||
-                    selectedReq.IntroducerCode ||
-                    '—',
-                ],
-                [
-                  'Created At',
-                  selectedReq.created_at || selectedReq.CreatedAt || '—',
-                ],
-              ].map(([label, val]) => (
-                <div
-                  key={label}
-                  className="flex justify-between items-center py-2.5"
-                >
-                  <span className="font-semibold text-gray-500">{label}</span>
-                  <span className="font-bold text-gray-800">
-                    {label === 'Status' ? (
-                      <StatusBadge status={val} />
-                    ) : (
-                      val
-                    )}
-                  </span>
+            {/* ── Resolve display values ──────────────────────────────── */}
+            {(() => {
+              const r = selectedReq;
+
+              // Member Name
+              let mName = r.member_name || r.MemberName || r.name || '';
+              if (!mName && (r.member_id || r.MemberId)) {
+                const mId = String(r.member_id || r.MemberId || '');
+                const mem = (window.__allMembersCache || []).find(m => String(m._id || m.id || '') === mId);
+                if (mem) {
+                  const fn = mem.FirstName || mem.firstname || '';
+                  const ln = mem.LastName  || mem.lastname  || '';
+                  mName = `${fn} ${ln}`.trim() || mem.MemberName || '';
+                }
+              }
+
+              // Branch Name
+              let bName = r.branch_name || r.BranchName || '';
+              if (!bName && (r.branch_id || r.BranchId)) {
+                const bId = String(r.branch_id || r.BranchId || '');
+                const br = branches.find(b => String(b._id || b.id || '') === bId);
+                bName = br ? getBranchName(br) : '';
+              }
+
+              // Designation Name
+              let dName = r.designation_name || r.designationName || r.designation || '';
+              if (!dName && (r.designation_id || r.DesignationId)) {
+                const dId = String(r.designation_id || r.DesignationId || '');
+                const des = designations.find(d => String(d._id || d.id || '') === dId);
+                dName = des ? (des.designationName || des.designation_name || des.name || '') : '';
+              }
+
+              // Created At — formatted readable
+              const rawDate = r.created_at || r.CreatedAt || '';
+              let createdAt = rawDate;
+              if (rawDate) {
+                try {
+                  createdAt = new Date(rawDate).toLocaleString('en-IN', {
+                    day: '2-digit', month: 'short', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit', hour12: true,
+                  });
+                } catch (_) {}
+              }
+
+              const rows = [
+                ['Member Name',    mName    || '—'],
+                ['Branch',         bName    || '—'],
+                ['Designation',    dName    || '—'],
+                ['Status',         getEffectiveStatus(r)],
+                ['Agent Code', r.agentCode || r.agent_code || r.AgentCode || r.introducer_code || r.IntroducerCode || r.introducer_id || r.IntroducerId || '—'],
+                ['Created At',     createdAt || '—'],
+              ];
+
+              return (
+                <div className="space-y-0 text-xs divide-y divide-gray-50">
+                  {rows.map(([label, val]) => (
+                    <div key={label} className="flex justify-between items-center py-2.5">
+                      <span className="font-semibold text-gray-500">{label}</span>
+                      <span className="font-bold text-gray-800 text-right max-w-[60%] break-words">
+                        {label === 'Status' ? <StatusBadge status={val} /> : val}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
+
 
             <div className="mt-5 flex justify-between items-center gap-3 flex-wrap">
               <div className="flex gap-2">

@@ -67,6 +67,7 @@ export const loan_tabs = [
     { label: 'INTEREST SLAB', route: 'interest_slabs' },
     { label: 'LOAN CALCULATOR', route: 'loan_calculator' },
     { label: 'APPLY LOAN', route: 'apply_loan' },
+    { label: 'LOAN REQUESTS', route: 'loan_requests' },
     { label: 'AGENT DESIGNATION', route: 'agent_designation' },
     { label: 'CREATE AGENT', route: 'create_agent' },
   ];

@@ -4,10 +4,17 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(),tailwindcss()],
+  plugins: [react(), tailwindcss()],
   server: {
     allowedHosts: [
-      "http://192.168.29.145:5000", // 👈 Add your ngrok host here
+      "http://192.168.29.145:5000",
     ],
+    proxy: {
+      '/badri_enterprises': {
+        target: 'http://192.168.29.145:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 })

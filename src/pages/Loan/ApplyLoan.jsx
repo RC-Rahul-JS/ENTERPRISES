@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { CreditCard, Loader, Search, FileText, Trash2, PlusCircle, ArrowLeft } from 'lucide-react';
+import loanService from '../../api/loanService';
 
 const toast = {
   success: (msg) =>
@@ -637,11 +638,9 @@ const ApplyLoan = () => {
     console.log('formDataPayload', formDataPayload);
 
     try {
-      const res = await axios.post(`${BASE}/loan-requests`, formDataPayload, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const res = await loanService.createLoanRequest(formDataPayload);
       console.log('Apply Loan API Success:', res);
-      toast.success(res.data?.message || 'Loan request submitted successfully!');
+      toast.success(res?.message || 'Loan request submitted successfully!');
       // resetForm();
     } catch (error) {
       console.error('Error submitting loan request:', error);

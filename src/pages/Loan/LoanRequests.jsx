@@ -21,6 +21,7 @@ import {
   BadgeCheck,
 } from 'lucide-react';
 import { useLoader } from '../../context/LoaderContext';
+import loanService from '../../api/loanService';
 
 const BASE_URL =
   import.meta.env.VITE_LOCALPRIME_URL ||
@@ -112,18 +113,19 @@ const LoanRequests = () => {
     }
   }, []);
 
-  // ── Fetch Loan Requests ─────────────────────────────────────────────────────
+  // ── Fetch Loan Requests (GET /loan-requests) & Approved Loans (GET /loans) ────
   const fetchRequests = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${BASE_URL}/loan-requests`);
-      const rawList = Array.isArray(res.data)
-        ? res.data
-        : res.data?.data || res.data?.requests || [];
+      const [rawRequests, rawApprovedLoans] = await Promise.all([
+        loanService.getLoanRequests().catch(() => []),
+        loanService.getAllApprovedLoans().catch(() => []),
+      ]);
 
-      console.log('[LoanRequests] GET /loan-requests raw response count:', rawList.length);
+      console.log('[LoanRequests] GET /loan-requests count:', rawRequests.length);
+      console.log('[LoanRequests] GET /loans count:', rawApprovedLoans.length);
 
-      const normalized = rawList.map((item, idx) => {
+      const normalizedRequests = rawRequests.map((item, idx) => {
         const id = item.request_id || item.requestId || item._id || item.id || `LOAN-REQ-${idx + 1}`;
         const rawStatus =
           item.status ||
@@ -131,20 +133,36 @@ const LoanRequests = () => {
           item.request_status ||
           item.approval_status ||
           'pending';
-        const status = rawStatus.toString().toLowerCase();
 
         return {
           raw: item,
           id,
           serialNo: `LR-${String(idx + 1).padStart(3, '0')}`,
-          status,
+          status: rawStatus.toString().toLowerCase(),
           createdAt: item.created_at || item.createdAt || item.date || 'N/A',
+          isApprovedLoan: false,
         };
       });
 
-      setRequests(normalized);
+      const normalizedApproved = rawApprovedLoans.map((item, idx) => {
+        const id = item.loan_id || item.loanId || item._id || item.id || `LOAN-${idx + 1}`;
+        return {
+          raw: item,
+          id,
+          serialNo: `LN-${String(idx + 1).padStart(3, '0')}`,
+          status: 'approved',
+          createdAt: item.created_at || item.createdAt || item.date || item.approved_at || 'N/A',
+          isApprovedLoan: true,
+        };
+      });
+
+      // Combine lists and deduplicate by id
+      const reqIdSet = new Set(normalizedRequests.map((r) => String(r.id)));
+      const extraApproved = normalizedApproved.filter((a) => !reqIdSet.has(String(a.id)));
+
+      setRequests([...normalizedRequests, ...extraApproved]);
     } catch (err) {
-      console.error('[LoanRequests] GET /loan-requests error:', err);
+      console.error('[LoanRequests] Fetch error:', err);
       toast.error('Failed to load loan requests');
       setRequests([]);
     } finally {
@@ -194,17 +212,15 @@ const LoanRequests = () => {
     return found?.ProductName || found?.productName || found?.name || pId || '—';
   };
 
-  // ── Status Update: POST /loan-requests/<mongo_id> ────────────────────────
+  // ── Status Update: POST /loan-requests-approval/<request_id> ──────────────
   const handleStatusUpdate = async (requestItem, newStatus) => {
     const r = requestItem?.raw || {};
-    // Extract MongoDB _id directly (24-char hex string or object)
-    const mongoId = String(r._id?.$oid || r._id || r.id || requestItem?.id || '').trim();
-    if (!mongoId) return toast.error('Cannot resolve MongoDB ID for loan request');
+    const requestId = String(r._id?.$oid || r._id || r.id || requestItem?.id || '').trim();
+    if (!requestId) return toast.error('Cannot resolve ID for loan request');
 
-    setUpdatingStatus(mongoId);
+    setUpdatingStatus(requestId);
     showLoader();
 
-    const url = `${BASE_URL}/loan-requests/${mongoId}`;
     const numRoi = parseFloat(r.interestRate || r.roi || r.interest_rate || 0);
 
     const payload = {
@@ -212,13 +228,11 @@ const LoanRequests = () => {
       interestRate: numRoi,
     };
 
-    console.log(`[LoanRequests] POST ${url} →`, payload);
+    console.log(`[LoanRequests] POST /loan-requests-approval/${requestId} →`, payload);
 
     try {
-      const res = await axios.post(url, payload, {
-        headers: { 'Content-Type': 'application/json' },
-      });
-      toast.success(res.data?.message || `Loan request ${newStatus} successfully!`);
+      const res = await loanService.updateLoanApproval(requestId, payload);
+      toast.success(res?.message || `Loan request ${newStatus} successfully!`);
       fetchRequests();
     } catch (err) {
       console.error('[LoanRequests] Status update error:', err?.response?.data || err.message);
@@ -228,6 +242,29 @@ const LoanRequests = () => {
     } finally {
       setUpdatingStatus(null);
       hideLoader();
+    }
+  };
+
+  // ── View Particular Details: GET /loans/<loan_id> or POST /loan-requests/<request_id> ──
+  const handleViewDetails = async (item) => {
+    const r = item?.raw || {};
+    const id = String(r.loan_id || r.loanId || r._id?.$oid || r._id || item?.id || '').trim();
+
+    if (item.isApprovedLoan || ['approved', 'active'].includes(item.status)) {
+      try {
+        showLoader();
+        const details = await loanService.getApprovedLoanById(id);
+        setSelectedRequest({
+          ...item,
+          raw: { ...r, ...(typeof details === 'object' ? details : {}) },
+        });
+      } catch (_) {
+        setSelectedRequest(item);
+      } finally {
+        hideLoader();
+      }
+    } else {
+      setSelectedRequest(item);
     }
   };
 
@@ -437,7 +474,7 @@ const LoanRequests = () => {
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={() => setSelectedRequest(item)}
+                              onClick={() => handleViewDetails(item)}
                               className="p-1.5 rounded-lg text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition"
                               title="View Details"
                             >

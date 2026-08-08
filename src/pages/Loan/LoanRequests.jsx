@@ -22,10 +22,7 @@ import {
 } from 'lucide-react';
 import { useLoader } from '../../context/LoaderContext';
 import loanService from '../../api/loanService';
-
-const BASE_URL =
-  import.meta.env.VITE_LOCALPRIME_URL ||
-  'http://192.168.29.145:5000/badri_enterprises/localprime';
+import { BASE_URL } from '../../config/api';
 
 const toast = {
   success: (msg) =>

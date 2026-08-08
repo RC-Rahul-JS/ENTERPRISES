@@ -11,7 +11,7 @@ import {
   CheckCircle,
   XCircle,
 } from 'lucide-react';
-
+import { BASE_URL } from '../../config/api';
 const toast = {
   success: (msg) =>
     Swal.fire({
@@ -39,9 +39,6 @@ const toast = {
 };
 
 const LoanProducts = () => {
-  const localprimeBase =
-    import.meta.env.VITE_LOCALPRIME_URL ||
-    'http://192.168.29.145:5000/badri_enterprises/localprime';
 
   // Form State
   const [productType, setProductType] = useState('Group');

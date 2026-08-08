@@ -18,10 +18,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import statejosn from './statedistrict.json';
-
-const BASE_URL =
-  import.meta.env.VITE_LOCALPRIME_URL ||
-  'http://192.168.29.145:5000/badri_enterprises/localprime';
+import { BASE_URL } from '../../config/api';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'All Requests' },

@@ -1,8 +1,5 @@
 import axios from 'axios';
-
-const BASE_URL =
-  import.meta.env.VITE_LOCALPRIME_URL ||
-  'http://192.168.29.145:5000/badri_enterprises/localprime';
+import { BASE_URL } from '../config/api';
 
 /**
  * Clean, non-duplicative API Service for Loan Operations

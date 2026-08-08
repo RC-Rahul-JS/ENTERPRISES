@@ -3,6 +3,7 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 import { Pencil, Loader, Save } from 'lucide-react';
 import { useLoader } from '../../context/LoaderContext';
+import { BASE_URL as localprimeBase } from '../../config/api';
 
 const toast = {
   success: (msg) => {
@@ -47,7 +48,6 @@ const AgentDesignation = () => {
   const fetchDesignations = async () => {
     setLoading(true);
     showLoader();
-    const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
     const api = `${localprimeBase}/designations`;
     try {
       const res = await axios.get(api);
@@ -87,7 +87,6 @@ const AgentDesignation = () => {
 
     console.log('[AgentDesignation] Submitting payload:', payload, 'editingId:', editingId);
 
-    const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
 
     try {
       if (editingId) {

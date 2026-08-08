@@ -11,7 +11,7 @@ import {
   CheckCircle,
   XCircle,
 } from 'lucide-react';
-
+import { BASE_URL as BASE } from '../../config/api';
 const toast = {
   success: (msg) =>
     Swal.fire({
@@ -59,9 +59,6 @@ const pickId = (item) =>
 // ── Component ──────────────────────────────────────────────────────────────────
 
 const LoanInterestSlabs = () => {
-  const BASE =
-    import.meta.env.VITE_LOCALPRIME_URL ||
-    'http://192.168.29.145:5000/badri_enterprises/localprime';
 
   // ── State ──────────────────────────────────────────────────────────────────
 

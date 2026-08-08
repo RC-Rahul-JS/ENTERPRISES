@@ -18,6 +18,7 @@ import {
   ToggleRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { BASE_URL as localprimeBase } from '../../config/api';
 
 const toast = {
   success: (msg) =>
@@ -47,9 +48,6 @@ const toast = {
 
 const BranchList = () => {
   const navigate = useNavigate();
-  const localprimeBase =
-    import.meta.env.VITE_LOCALPRIME_URL ||
-    'http://192.168.29.145:5000/badri_enterprises/localprime';
 
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(false);

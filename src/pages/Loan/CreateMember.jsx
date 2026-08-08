@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useLoader } from '../../context/LoaderContext';
 import Swal from 'sweetalert2';
 import statejosn from './statedistrict.json';
+import { BASE_URL as localprimeBase } from '../../config/api';
 
 const toast = {
   success: (msg) => {
@@ -197,7 +198,6 @@ const MemberApplicationForm = () => {
     setAadharStatus(null);
     setAadharVerified(false);
     try {
-      const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
       const res = await axios.get(`${localprimeBase}/get-members`);
       let rawList = [];
       if (Array.isArray(res.data)) rawList = res.data;
@@ -347,7 +347,6 @@ const MemberApplicationForm = () => {
       console.log(pair[0] + ':', pair[1]);
     }
 
-    const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
     const api = `${localprimeBase}/create-member-request`;
     console.log(formDataPayload)
     try {
@@ -379,7 +378,6 @@ const MemberApplicationForm = () => {
     const mid = (targetMid || formdata.introducerid || '').trim();
     if (!mid || mid.length < 4) return;
     showLoader();
-    const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
     try {
       // Fetch from get-members (approved members only) — only approved members can introduce new members
       const res = await axios.get(`${localprimeBase}/get-members`);

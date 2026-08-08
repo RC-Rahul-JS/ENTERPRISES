@@ -3,6 +3,7 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 import { CreditCard, Loader, Search, FileText, Trash2, PlusCircle, ArrowLeft } from 'lucide-react';
 import loanService from '../../api/loanService';
+import { BASE_URL as BASE } from '../../config/api';
 
 const toast = {
   success: (msg) =>
@@ -40,9 +41,6 @@ const FREQUENCY_MAP = {
 };
 
 const ApplyLoan = () => {
-  const BASE =
-    import.meta.env.VITE_LOCALPRIME_URL ||
-    'http://192.168.29.145:5000/badri_enterprises/localprime';
 
   const today = new Date().toISOString().split('T')[0];
 

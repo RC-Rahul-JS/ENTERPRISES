@@ -19,6 +19,7 @@ import {
   Save,
   Loader,
 } from 'lucide-react';
+import { BASE_URL as localprimeBase } from '../../config/api';
 
 const MemberList = () => {
   const [members, setMembers] = useState([]);
@@ -33,7 +34,6 @@ const MemberList = () => {
   // Fetch only Accepted members from API
   const fetchMembers = async () => {
     setLoading(true);
-    const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
     const api = `${localprimeBase}/get-members`;
     try {
       const res = await axios.get(api);
@@ -389,8 +389,6 @@ const MemberList = () => {
 
     console.log(`--- Updating Member (mongoId: ${mongoId}, memberId: ${memberId}) ---`);
     console.log('JSON Payload:', jsonPayload);
-
-    const localprimeBase = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.145:5000/badri_enterprises/localprime';
 
     // Try API endpoints & methods sequentially
     const endpointsToTry = [

@@ -1,7 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import { Wallet, Loader, Search, FileText, Trash2, PlusCircle, ArrowLeft, CheckCircle } from 'lucide-react';
+import {
+  Wallet,
+  Loader,
+  Search,
+  FileText,
+  Trash2,
+  PlusCircle,
+  ArrowLeft,
+  CheckCircle,
+  XCircle,
+  Eye,
+  Clock,
+  RefreshCw,
+  Users,
+  X,
+  Filter,
+  Check,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useLoader } from '../../context/LoaderContext';
 import { BASE_URL } from '../../config/api';
 
@@ -30,14 +48,79 @@ const toast = {
     }),
 };
 
+// Initial Mock/Dummy Data for Wallet Applications List
+const INITIAL_DUMMY_WALLET_REQUESTS = [
+  {
+    id: 'WAL-2026-001',
+    date: '2026-08-05',
+    memberId: '0010006',
+    member_id: '64a0e101',
+    memberName: 'Rahul Sharma',
+    memberType: 'Regular',
+    age: '29',
+    branchName: 'Main Bhopal Branch',
+    branch_id: 'BR-01',
+    walletAmount: 15000,
+    remarks: 'Monthly business working capital top-up',
+    status: 'Pending',
+    createdAt: '2026-08-05 10:30 AM',
+  },
+  {
+    id: 'WAL-2026-002',
+    date: '2026-08-04',
+    memberId: '0010004',
+    member_id: '64a0e102',
+    memberName: 'Priya Verma',
+    memberType: 'Associate',
+    age: '34',
+    branchName: 'Indore Central',
+    branch_id: 'BR-02',
+    walletAmount: 25000,
+    remarks: 'Emergency wallet balance request',
+    status: 'Approved',
+    createdAt: '2026-08-04 02:15 PM',
+  },
+  {
+    id: 'WAL-2026-003',
+    date: '2026-08-03',
+    memberId: '0010009',
+    member_id: '64a0e103',
+    memberName: 'Amitabh Patel',
+    memberType: 'Agent',
+    age: '42',
+    branchName: 'Jabalpur Branch',
+    branch_id: 'BR-03',
+    walletAmount: 50000,
+    remarks: 'Agent commission wallet deposit',
+    status: 'Approved',
+    createdAt: '2026-08-03 11:45 AM',
+  },
+  {
+    id: 'WAL-2026-004',
+    date: '2026-08-02',
+    memberId: '0010012',
+    member_id: '64a0e104',
+    memberName: 'Suresh Kumar',
+    memberType: 'Ordinary',
+    age: '50',
+    branchName: 'Gwalior Main',
+    branch_id: 'BR-04',
+    walletAmount: 8000,
+    remarks: 'Personal wallet addition',
+    status: 'Rejected',
+    createdAt: '2026-08-02 04:00 PM',
+  },
+];
+
 const ApplyWallet = () => {
+  const navigate = useNavigate();
   const loaderCtx = useLoader();
   const showLoader = loaderCtx?.showLoader || (() => {});
   const hideLoader = loaderCtx?.hideLoader || (() => {});
 
   const today = new Date().toISOString().split('T')[0];
 
-  // ── Step Navigation State (1: Wallet Form, 2: Document Uploads) ───────────
+  // ── Step Navigation State (1: Wallet Form, 2: Wallet Applications List) ───
   const [step, setStep] = useState(1);
 
   // ── Top Header / Branch Section ───────────────────────────────────────────
@@ -55,25 +138,26 @@ const ApplyWallet = () => {
   const [walletAmount, setWalletAmount] = useState('');
   const [remarks, setRemarks] = useState('');
 
-  // ── Document Upload States ────────────────────────────────────────────────
-  const [bankStatement, setBankStatement] = useState(null);
-  const [form16, setForm16] = useState(null);
-  const [otherDoc, setOtherDoc] = useState(null);
-
-  // Dynamic Add More Documents States
-  const [newDocName, setNewDocName] = useState('');
-  const [newDocNumber, setNewDocNumber] = useState('');
-  const [newDocFile, setNewDocFile] = useState(null);
-  const [addMoreDocs, setAddMoreDocs] = useState([]);
-  const fileInputRef = useRef(null);
-
   // Dropdown & Search options
   const [branches, setBranches] = useState([]);
   const [allMembers, setAllMembers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [fetchingMember, setFetchingMember] = useState(false);
 
-  // ── Fetch Branches & Members ──────────────────────────────────────────────
+  // ── Wallet Requests List State (Mock DB) ─────────────────────────────────
+  const [walletRequests, setWalletRequests] = useState(INITIAL_DUMMY_WALLET_REQUESTS);
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRequest, setSelectedRequest] = useState(null); // For View Modal
+
+  // ── Log list data on mount and whenever list updates ────────────────────
+  useEffect(() => {
+    console.log('================ CURRENT WALLET REQUESTS LIST DATA ================');
+    console.log('Total Items:', walletRequests.length);
+    console.log('List Items:', walletRequests);
+  }, [walletRequests]);
+
+  // ── Fetch Branches & Members from API ─────────────────────────────────────
   useEffect(() => {
     const fetchDropdowns = async () => {
       try {
@@ -132,7 +216,7 @@ const ApplyWallet = () => {
     }
   };
 
-  // ── Member ID Input & Direct Search ──────────────────────────────────────
+  // ── Member ID Input & Search ─────────────────────────────────────────────
   const handleMemberIdInputChange = (val) => {
     setMemberId(val);
     setMemberName('');
@@ -194,32 +278,6 @@ const ApplyWallet = () => {
     }
   };
 
-  // ── Document Handlers ─────────────────────────────────────────────────────
-  const handleAddMoreDoc = () => {
-    if (!newDocName.trim()) return toast.error('Please enter Document Name');
-    if (!newDocFile) return toast.error('Please select a File to upload');
-
-    const newDocObj = {
-      id: Date.now(),
-      name: newDocName.trim(),
-      number: newDocNumber.trim(),
-      file: newDocFile,
-      fileName: newDocFile.name,
-    };
-
-    setAddMoreDocs((prev) => [...prev, newDocObj]);
-    setNewDocName('');
-    setNewDocNumber('');
-    setNewDocFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-
-    toast.success('Document added to list');
-  };
-
-  const handleRemoveAddMoreDoc = (id) => {
-    setAddMoreDocs((prev) => prev.filter((doc) => doc.id !== id));
-  };
-
   // ── Reset Form ────────────────────────────────────────────────────────────
   const resetForm = () => {
     setDate(today);
@@ -231,19 +289,9 @@ const ApplyWallet = () => {
     setAge('');
     setWalletAmount('');
     setRemarks('');
-
-    setStep(1);
-    setBankStatement(null);
-    setForm16(null);
-    setOtherDoc(null);
-    setNewDocName('');
-    setNewDocNumber('');
-    setNewDocFile(null);
-    setAddMoreDocs([]);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // ── Navigation & Submit Handlers ──────────────────────────────────────────
+  // ── Submit / Next Step Handler: Creates New Request & Goes to List View ───
   const handleNextStep = (e) => {
     e.preventDefault();
 
@@ -258,130 +306,102 @@ const ApplyWallet = () => {
     });
     const resolvedBranchId = bObj?._id || bObj?.id || bObj?.BranchCode || branchName;
 
-    const walletData = {
+    // Create unique ID for new request
+    const newReqId = `WAL-2026-00${walletRequests.length + 1}`;
+
+    const newWalletRequest = {
+      id: newReqId,
       date,
       branchName,
       branch_id: resolvedBranchId,
       memberId,
       member_id: memberMongoId || memberId,
       memberName,
-      memberType,
-      age,
+      memberType: memberType || 'Regular',
+      age: age || '-',
       walletAmount: parseFloat(walletAmount) || 0,
-      remarks,
+      remarks: remarks || 'Wallet topup application',
       status: 'Pending',
       type: 'Wallet Application',
+      createdAt: new Date().toLocaleString(),
     };
 
-    console.log('================ APPLY WALLET DATA ================');
-    console.log('Wallet Form Data (JSON):', walletData);
+    // 🌟 LOG DATA TO CONSOLE 🌟
+    console.log('================ NEW APPLY WALLET REQUEST CREATED ================');
+    console.log('Payload:', newWalletRequest);
 
-    setStep(2);
+    // Add new request to top of list
+    setWalletRequests((prev) => [newWalletRequest, ...prev]);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Wallet Application Submitted!',
+      text: `Request ID ${newReqId} created successfully. Redirecting to Apply Wallet List.`,
+      confirmButtonColor: '#2D336B',
+      timer: 2000,
+    });
+
+    // Reset form and navigate to Wallet Requests list page
+    resetForm();
+    navigate('/loan/wallet_requests');
   };
 
-  const handleSubmit = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
+  // ── Status Action Handlers for List Items (Approve / Reject / Delete) ─────
+  const handleApprove = (reqId) => {
+    console.log('================ APPROVING WALLET REQUEST ================', reqId);
+    setWalletRequests((prev) =>
+      prev.map((r) => (r.id === reqId ? { ...r, status: 'Approved' } : r))
+    );
+    toast.success(`Request ${reqId} Approved!`);
+  };
 
-    setSubmitting(true);
-    showLoader();
+  const handleReject = (reqId) => {
+    console.log('================ REJECTING WALLET REQUEST ================', reqId);
+    setWalletRequests((prev) =>
+      prev.map((r) => (r.id === reqId ? { ...r, status: 'Rejected' } : r))
+    );
+    toast.error(`Request ${reqId} Rejected!`);
+  };
 
-    // Resolve Branch ID
-    const bObj = branches.find((b) => {
-      const name = b.BranchName || b.branchName || b.name || b.branch_name || '';
-      return name === branchName || b._id === branchName || b.BranchCode === branchName;
-    });
-    const resolvedBranchId = bObj?._id || bObj?.id || bObj?.BranchCode || branchName;
-
-    // Build FormData
-    const formDataPayload = new FormData();
-    formDataPayload.append('member_id', memberMongoId || memberId);
-    formDataPayload.append('memberId', memberId);
-    formDataPayload.append('memberName', memberName);
-    formDataPayload.append('memberType', memberType);
-    formDataPayload.append('age', age);
-    formDataPayload.append('branch_id', resolvedBranchId);
-    formDataPayload.append('branchName', branchName);
-    formDataPayload.append('date', date);
-    formDataPayload.append('walletAmount', parseFloat(walletAmount) || 0);
-    formDataPayload.append('amount', parseFloat(walletAmount) || 0);
-    formDataPayload.append('remarks', remarks);
-    formDataPayload.append('status', 'Pending');
-    formDataPayload.append('type', 'Wallet Application');
-
-    // Documents
-    const docsMeta = [];
-    if (bankStatement) {
-      docsMeta.push({ docName: 'Bank Statement', fileKey: 'bankStatement' });
-      formDataPayload.append('bankStatement', bankStatement);
-    }
-    if (form16) {
-      docsMeta.push({ docName: 'Form 16', fileKey: 'form16' });
-      formDataPayload.append('form16', form16);
-    }
-    if (otherDoc) {
-      docsMeta.push({ docName: 'Other Document', fileKey: 'otherDoc' });
-      formDataPayload.append('otherDoc', otherDoc);
-    }
-
-    addMoreDocs.forEach((doc, index) => {
-      const key = `customDoc_${index}`;
-      docsMeta.push({
-        docName: doc.name,
-        docNumber: doc.number,
-        fileKey: key,
-      });
-      formDataPayload.append(key, doc.file);
-    });
-
-    formDataPayload.append('documentsMeta', JSON.stringify(docsMeta));
-
-    console.log('================ APPLY WALLET SUBMIT FORM DATA ================');
-    for (let pair of formDataPayload.entries()) {
-      console.log(`${pair[0]}:`, pair[1]);
-    }
-
-    // Endpoints fallback array
-    const apiEndpoints = [
-      { url: `${BASE_URL}/create-wallet-request`, type: 'multipart' },
-      { url: `${BASE_URL}/wallet-requests`, type: 'multipart' },
-      { url: `${BASE_URL}/apply-wallet`, type: 'multipart' },
-      { url: `${BASE_URL}/create-member-wallet`, type: 'multipart' },
-      { url: `${BASE_URL}/loan-requests`, type: 'multipart' },
-    ];
-
-    let success = false;
-    let responseMsg = '';
-
-    for (const endpoint of apiEndpoints) {
-      try {
-        const res = await axios.post(endpoint.url, formDataPayload, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-
-        if (res.status === 200 || res.status === 201) {
-          success = true;
-          responseMsg = res.data?.message || 'Wallet Application submitted successfully!';
-          break;
-        }
-      } catch (err) {
-        console.warn(`[ApplyWallet] Endpoint ${endpoint.url} failed:`, err?.response?.data || err.message);
+  const handleDelete = (reqId) => {
+    Swal.fire({
+      title: 'Are you sure?',
+      text: `Remove wallet request ${reqId} from list?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, delete it!',
+    }).then((res) => {
+      if (res.isConfirmed) {
+        console.log('================ DELETING WALLET REQUEST ================', reqId);
+        setWalletRequests((prev) => prev.filter((r) => r.id !== reqId));
+        toast.success(`Request ${reqId} deleted.`);
       }
-    }
+    });
+  };
 
-    setSubmitting(false);
-    hideLoader();
+  // ── Filtered List Items ───────────────────────────────────────────────────
+  const filteredRequests = walletRequests.filter((r) => {
+    const matchesStatus =
+      statusFilter === 'ALL' || r.status.toLowerCase() === statusFilter.toLowerCase();
+    const query = searchTerm.toLowerCase().trim();
+    const matchesSearch =
+      !query ||
+      r.id.toLowerCase().includes(query) ||
+      r.memberId.toLowerCase().includes(query) ||
+      r.memberName.toLowerCase().includes(query) ||
+      r.branchName.toLowerCase().includes(query);
 
-    if (success) {
-      Swal.fire({
-        icon: 'success',
-        title: 'Wallet Application Submitted!',
-        text: responseMsg,
-        confirmButtonColor: '#2D336B',
-      });
-      resetForm();
-    } else {
-      toast.error('Failed to submit Wallet Application. Please check your backend connection.');
-    }
+    return matchesStatus && matchesSearch;
+  });
+
+  // KPI Counts
+  const counts = {
+    ALL: walletRequests.length,
+    pending: walletRequests.filter((r) => r.status.toLowerCase() === 'pending').length,
+    approved: walletRequests.filter((r) => r.status.toLowerCase() === 'approved').length,
+    rejected: walletRequests.filter((r) => r.status.toLowerCase() === 'rejected').length,
   };
 
   // ── CSS Classes matching current Loan UI ──────────────────────────────────
@@ -397,365 +417,544 @@ const ApplyWallet = () => {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 bg-slate-50">
-      <div className="max-w-7xl mx-auto shadow-sm rounded-lg border border-gray-200 bg-white">
+      <div className="max-w-7xl mx-auto space-y-4">
+        {/* ── TOP NAVIGATION TABS (Form vs List View) ──────────────────────── */}
+        <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                step === 1
+                  ? 'bg-[#3B3C6E] text-white shadow'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Wallet className="w-4 h-4" />
+              <span>APPLY WALLET FORM</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                console.log('================ SWITCHED TO WALLET LIST VIEW ================', walletRequests);
+                setStep(2);
+              }}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                step === 2
+                  ? 'bg-[#3B3C6E] text-white shadow'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>APPLY WALLET LIST ({walletRequests.length})</span>
+            </button>
+          </div>
+
+          <div className="text-xs font-medium text-gray-500">
+            Current Module: <span className="font-bold text-indigo-900">Loan &gt; Apply Wallet</span>
+          </div>
+        </div>
+
         {/* ── STEP 1: APPLY WALLET FORM ────────────────────────────────────── */}
         {step === 1 && (
-          <form onSubmit={handleNextStep} className="space-y-0">
-            {/* ── Header Banner: APPLY WALLET ────────────────────────────────── */}
-            <div className="bg-[#3B3C6E] text-white px-4 py-2.5 font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-purple-200" />
-                <span>APPLY WALLET</span>
-              </div>
-            </div>
-
-            <div
-              className="p-5 space-y-5"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300'%3E%3Cg stroke='%23c5cae9' stroke-width='0.5' opacity='0.25' fill='none'%3E%3Ccircle cx='300' cy='150' r='120'/%3E%3Ccircle cx='300' cy='150' r='80'/%3E%3Cline x1='0' y1='150' x2='600' y2='150'/%3E%3Cline x1='300' y1='0' x2='300' y2='300'/%3E%3C/g%3E%3C/svg%3E")`,
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'center',
-                backgroundSize: 'contain',
-              }}
-            >
-              {/* Top Row: Date & Branch Name */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-                <div>
-                  <label className={labelCls}>Date</label>
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className={inputCls}
-                  />
+          <div className="shadow-sm rounded-lg border border-gray-200 bg-white overflow-hidden">
+            <form onSubmit={handleNextStep} className="space-y-0">
+              {/* ── Header Banner: APPLY WALLET ────────────────────────────────── */}
+              <div className="bg-[#3B3C6E] text-white px-4 py-2.5 font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-purple-200" />
+                  <span>APPLY WALLET</span>
                 </div>
-
-                <div>
-                  <label className={labelCls}>
-                    Branch Name <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={branchName}
-                    onChange={(e) => setBranchName(e.target.value)}
-                    className={inputCls}
-                  >
-                    <option value="">--Select--</option>
-                    {branches.map((b, idx) => {
-                      const name = b.BranchName || b.branchName || b.name || b.branch_name || '';
-                      const code = b.BranchCode || b.code || '';
-                      const val = name || code;
-                      return (
-                        <option key={`branch_${b._id || b.BranchCode || idx}_${idx}`} value={val}>
-                          {name} {code ? `(${code})` : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-              </div>
-
-              {/* ── Section 1: Member Details ───────────────────────────────── */}
-              <div className="rounded border border-gray-200">
-                <SectionBanner title="Member Details" />
-                <div className="p-4 bg-white">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className={labelCls}>
-                        Member ID <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative flex items-center gap-1">
-                        <input
-                          type="text"
-                          value={memberId}
-                          onChange={(e) => handleMemberIdInputChange(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleSearchMember();
-                            }
-                          }}
-                          onBlur={() => {}}
-                          placeholder="Member ID"
-                          className={inputCls}
-                        />
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={handleSearchMember}
-                          className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
-                          title="Search Member ID"
-                        >
-                          {fetchingMember ? (
-                            <Loader className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Search className="w-3.5 h-3.5" />
-                          )}
-                          <span>Search</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className={labelCls}>Member Name</label>
-                      <input
-                        type="text"
-                        value={memberName}
-                        onChange={(e) => setMemberName(e.target.value)}
-                        placeholder="Member Name"
-                        className={inputCls}
-                      />
-                    </div>
-
-                    <div>
-                      <label className={labelCls}>Member Type</label>
-                      <input
-                        type="text"
-                        value={memberType}
-                        onChange={(e) => setMemberType(e.target.value)}
-                        placeholder="Type"
-                        className={inputCls}
-                      />
-                    </div>
-
-                    <div>
-                      <label className={labelCls}>Age</label>
-                      <input
-                        type="text"
-                        value={age}
-                        onChange={(e) => setAge(e.target.value)}
-                        placeholder="Age"
-                        className={inputCls}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Section 2: Details ──────────────────────────────────────── */}
-              <div className="rounded border border-gray-200">
-                <SectionBanner title="Details" />
-                <div className="p-4 bg-white">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className={labelCls}>
-                        Wallet Amount <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        value={walletAmount}
-                        onChange={(e) => setWalletAmount(e.target.value)}
-                        placeholder="0"
-                        className={inputCls}
-                      />
-                    </div>
-
-                    <div className="sm:col-span-3">
-                      <label className={labelCls}>Remarks / Purpose</label>
-                      <input
-                        type="text"
-                        value={remarks}
-                        onChange={(e) => setRemarks(e.target.value)}
-                        placeholder="Optional remarks"
-                        className={inputCls}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Bar (NEXT Button) */}
-              <div className="flex justify-end pt-4">
                 <button
-                  type="submit"
-                  className="px-8 py-2 bg-[#2D336B] hover:bg-[#1E2245] text-white font-bold text-xs uppercase tracking-wider rounded transition flex items-center gap-2 shadow"
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="text-xs underline hover:text-purple-200 font-normal transition"
                 >
-                  <span>NEXT</span>
+                  View All Requests ({walletRequests.length}) &rarr;
                 </button>
               </div>
-            </div>
-          </form>
-        )}
 
-        {/* ── STEP 2: DOCUMENTS UPLOAD ─────────────────────────────────────── */}
-        {step === 2 && (
-          <div className="space-y-0">
-            {/* Header Banner: DOCUMENTS */}
-            <div className="bg-[#3B3C6E] text-white px-4 py-2.5 font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-purple-200" />
-                <span>DOCUMENTS</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="flex items-center gap-1 bg-[#2D336B] hover:bg-indigo-900 text-white px-3 py-1 rounded text-xs transition"
+              <div
+                className="p-5 space-y-5"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300'%3E%3Cg stroke='%23c5cae9' stroke-width='0.5' opacity='0.25' fill='none'%3E%3Ccircle cx='300' cy='150' r='120'/%3E%3Ccircle cx='300' cy='150' r='80'/%3E%3Cline x1='0' y1='150' x2='600' y2='150'/%3E%3Cline x1='300' y1='0' x2='300' y2='300'/%3E%3C/g%3E%3C/svg%3E")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'center',
+                  backgroundSize: 'contain',
+                }}
               >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Wallet Form</span>
-              </button>
-            </div>
-
-            <div className="p-5 space-y-5 bg-white">
-              {/* Mandatory/Standard Documents Section */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="border border-gray-200 rounded p-3 bg-slate-50/50">
-                  <label className={labelCls}>Bank Statement</label>
-                  <input
-                    type="file"
-                    onChange={(e) => setBankStatement(e.target.files[0] || null)}
-                    className="w-full text-xs text-gray-600 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                  />
-                  {bankStatement && (
-                    <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1 font-medium">
-                      <CheckCircle className="w-3 h-3" /> {bankStatement.name}
-                    </p>
-                  )}
-                </div>
-
-                <div className="border border-gray-200 rounded p-3 bg-slate-50/50">
-                  <label className={labelCls}>Form 16</label>
-                  <input
-                    type="file"
-                    onChange={(e) => setForm16(e.target.files[0] || null)}
-                    className="w-full text-xs text-gray-600 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                  />
-                  {form16 && (
-                    <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1 font-medium">
-                      <CheckCircle className="w-3 h-3" /> {form16.name}
-                    </p>
-                  )}
-                </div>
-
-                <div className="border border-gray-200 rounded p-3 bg-slate-50/50">
-                  <label className={labelCls}>Other Document</label>
-                  <input
-                    type="file"
-                    onChange={(e) => setOtherDoc(e.target.files[0] || null)}
-                    className="w-full text-xs text-gray-600 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                  />
-                  {otherDoc && (
-                    <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1 font-medium">
-                      <CheckCircle className="w-3 h-3" /> {otherDoc.name}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Add More Documents Section */}
-              <div className="rounded border border-gray-200 overflow-hidden">
-                <SectionBanner title="Add More Documents" />
-                <div className="p-4 bg-white space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                    <div>
-                      <label className={labelCls}>Document Name</label>
-                      <input
-                        type="text"
-                        value={newDocName}
-                        onChange={(e) => setNewDocName(e.target.value)}
-                        placeholder="Document Name"
-                        className={inputCls}
-                      />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Document No.</label>
-                      <input
-                        type="text"
-                        value={newDocNumber}
-                        onChange={(e) => setNewDocNumber(e.target.value)}
-                        placeholder="Document No."
-                        className={inputCls}
-                      />
-                    </div>
-                    <div>
-                      <label className={labelCls}>Upload File</label>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        onChange={(e) => setNewDocFile(e.target.files[0] || null)}
-                        className="w-full text-xs text-gray-600 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                      />
-                    </div>
+                {/* Top Row: Date & Branch Name */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                  <div>
+                    <label className={labelCls}>Date</label>
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className={inputCls}
+                    />
                   </div>
 
                   <div>
-                    <button
-                      type="button"
-                      onClick={handleAddMoreDoc}
-                      className="px-4 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 transition shadow-sm"
+                    <label className={labelCls}>
+                      Branch Name <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={branchName}
+                      onChange={(e) => setBranchName(e.target.value)}
+                      className={inputCls}
                     >
-                      <PlusCircle className="w-3.5 h-3.5" />
-                      <span>Add Document</span>
-                    </button>
+                      <option value="">--Select--</option>
+                      {branches.map((b, idx) => {
+                        const name = b.BranchName || b.branchName || b.name || b.branch_name || '';
+                        const code = b.BranchCode || b.code || '';
+                        const val = name || code;
+                        return (
+                          <option key={`branch_${b._id || b.BranchCode || idx}_${idx}`} value={val}>
+                            {name} {code ? `(${code})` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
+                </div>
 
-                  {/* Added Documents List */}
-                  {addMoreDocs.length > 0 && (
-                    <div className="mt-4 border border-gray-200 rounded overflow-hidden">
-                      <table className="w-full text-xs text-left border-collapse">
-                        <thead className="bg-gray-100 text-gray-700 uppercase font-semibold">
-                          <tr>
-                            <th className="px-3 py-2 border-b">Document Name</th>
-                            <th className="px-3 py-2 border-b">Document No.</th>
-                            <th className="px-3 py-2 border-b">File Name</th>
-                            <th className="px-3 py-2 border-b text-center">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {addMoreDocs.map((doc) => (
-                            <tr key={doc.id} className="hover:bg-slate-50">
-                              <td className="px-3 py-2 font-medium text-gray-800">{doc.name}</td>
-                              <td className="px-3 py-2 text-gray-600">{doc.number || '-'}</td>
-                              <td className="px-3 py-2 text-gray-600">{doc.fileName}</td>
-                              <td className="px-3 py-2 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveAddMoreDoc(doc.id)}
-                                  className="text-red-500 hover:text-red-700 transition"
-                                  title="Remove"
-                                >
-                                  <Trash2 className="w-4 h-4 mx-auto" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                {/* ── Section 1: Member Details ───────────────────────────────── */}
+                <div className="rounded border border-gray-200">
+                  <SectionBanner title="Member Details" />
+                  <div className="p-4 bg-white">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className={labelCls}>
+                          Member ID <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={memberId}
+                            onChange={(e) => handleMemberIdInputChange(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSearchMember();
+                              }
+                            }}
+                            onBlur={() => {}}
+                            placeholder="Member ID"
+                            className={inputCls}
+                          />
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={handleSearchMember}
+                            className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
+                            title="Search Member ID"
+                          >
+                            {fetchingMember ? (
+                              <Loader className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Search className="w-3.5 h-3.5" />
+                            )}
+                            <span>Search</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className={labelCls}>Member Name</label>
+                        <input
+                          type="text"
+                          value={memberName}
+                          onChange={(e) => setMemberName(e.target.value)}
+                          placeholder="Member Name"
+                          className={inputCls}
+                        />
+                      </div>
+
+                      <div>
+                        <label className={labelCls}>Member Type</label>
+                        <input
+                          type="text"
+                          value={memberType}
+                          onChange={(e) => setMemberType(e.target.value)}
+                          placeholder="Type"
+                          className={inputCls}
+                        />
+                      </div>
+
+                      <div>
+                        <label className={labelCls}>Age</label>
+                        <input
+                          type="text"
+                          value={age}
+                          onChange={(e) => setAge(e.target.value)}
+                          placeholder="Age"
+                          className={inputCls}
+                        />
+                      </div>
                     </div>
-                  )}
+                  </div>
+                </div>
+
+                {/* ── Section 2: Details ──────────────────────────────────────── */}
+                <div className="rounded border border-gray-200">
+                  <SectionBanner title="Details" />
+                  <div className="p-4 bg-white">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className={labelCls}>
+                          Wallet Amount <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={walletAmount}
+                          onChange={(e) => setWalletAmount(e.target.value)}
+                          placeholder="0"
+                          className={inputCls}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-3">
+                        <label className={labelCls}>Remarks / Purpose</label>
+                        <input
+                          type="text"
+                          value={remarks}
+                          onChange={(e) => setRemarks(e.target.value)}
+                          placeholder="Optional remarks"
+                          className={inputCls}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Bar (NEXT Button) */}
+                <div className="flex justify-end pt-4">
+                  <button
+                    type="submit"
+                    className="px-8 py-2 bg-[#2D336B] hover:bg-[#1E2245] text-white font-bold text-xs uppercase tracking-wider rounded transition flex items-center gap-2 shadow"
+                  >
+                    <span>NEXT</span>
+                  </button>
                 </div>
               </div>
+            </form>
+          </div>
+        )}
 
-              {/* Final Submit & Back Buttons */}
-              <div className="flex justify-between items-center pt-4">
+        {/* ── STEP 2: APPLY WALLET REQUESTS LIST VIEW ──────────────────────── */}
+        {step === 2 && (
+          <div className="space-y-4">
+            {/* Header Banner */}
+            <div className="bg-[#3B3C6E] text-white p-4 rounded-xl shadow flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h1 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-purple-200" />
+                  <span>APPLY WALLET REQUESTS LIST</span>
+                </h1>
+                <p className="text-xs text-purple-200 mt-0.5">
+                  View, filter, and manage all member wallet application requests
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log('================ REFRESHED WALLET LIST ================', walletRequests);
+                    toast.success('Wallet list refreshed');
+                  }}
+                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Refresh List</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="px-5 py-2 bg-gray-500 hover:bg-gray-600 text-white font-bold text-xs uppercase tracking-wider rounded transition flex items-center gap-1"
+                  className="px-4 py-1.5 bg-white text-[#3B3C6E] hover:bg-purple-50 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back</span>
+                  <PlusCircle className="w-4 h-4" />
+                  <span>+ Apply New Wallet</span>
                 </button>
+              </div>
+            </div>
 
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="px-8 py-2 bg-[#2D336B] hover:bg-[#1E2245] text-white font-bold text-xs uppercase tracking-wider rounded transition flex items-center gap-2 shadow disabled:opacity-50"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader className="w-4 h-4 animate-spin" />
-                      <span>Submitting...</span>
-                    </>
-                  ) : (
-                    <span>Submit Wallet Application</span>
-                  )}
-                </button>
+            {/* KPI Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { key: 'ALL', label: 'All Requests', icon: <Users className="w-4 h-4 text-purple-600" />, bg: 'bg-purple-50' },
+                { key: 'pending', label: 'Pending Review', icon: <Clock className="w-4 h-4 text-amber-600" />, bg: 'bg-amber-50' },
+                { key: 'approved', label: 'Approved', icon: <CheckCircle className="w-4 h-4 text-emerald-600" />, bg: 'bg-emerald-50' },
+                { key: 'rejected', label: 'Rejected', icon: <XCircle className="w-4 h-4 text-red-600" />, bg: 'bg-red-50' },
+              ].map((tab) => {
+                const isSelected = statusFilter === tab.key;
+                return (
+                  <div
+                    key={tab.key}
+                    onClick={() => {
+                      setStatusFilter(tab.key);
+                      console.log(`================ FILTER CHANGED TO ${tab.key} ================`);
+                    }}
+                    className={`bg-white rounded-xl p-3 border cursor-pointer transition shadow-sm ${
+                      isSelected
+                        ? 'border-indigo-600 ring-2 ring-indigo-500/20'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`p-2 rounded-lg ${tab.bg}`}>{tab.icon}</span>
+                      <span className="text-xl font-black text-gray-900">{counts[tab.key]}</span>
+                    </div>
+                    <div className="mt-2 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                      {tab.label}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Filter Bar & Search Input */}
+            <div className="bg-white rounded-xl border border-gray-200 p-3 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {['ALL', 'pending', 'approved', 'rejected'].map((statusKey) => (
+                  <button
+                    key={statusKey}
+                    onClick={() => setStatusFilter(statusKey)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold uppercase transition ${
+                      statusFilter === statusKey
+                        ? 'bg-[#3B3C6E] text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {statusKey} ({counts[statusKey]})
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search Member, Req ID, Branch..."
+                  className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition"
+                />
+              </div>
+            </div>
+
+            {/* Wallet Requests Table Card */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-[#3B3C6E] text-white font-bold uppercase text-[11px] tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3 border-b border-indigo-900">Req. ID</th>
+                      <th className="px-4 py-3 border-b border-indigo-900">Date</th>
+                      <th className="px-4 py-3 border-b border-indigo-900">Member ID</th>
+                      <th className="px-4 py-3 border-b border-indigo-900">Member Name</th>
+                      <th className="px-4 py-3 border-b border-indigo-900">Branch</th>
+                      <th className="px-4 py-3 border-b border-indigo-900">Wallet Amount</th>
+                      <th className="px-4 py-3 border-b border-indigo-900">Remarks</th>
+                      <th className="px-4 py-3 border-b border-indigo-900">Status</th>
+                      <th className="px-4 py-3 border-b border-indigo-900 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-gray-700 font-medium">
+                    {filteredRequests.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="text-center py-10 text-gray-400">
+                          <Wallet className="w-8 h-8 mx-auto mb-2 opacity-40 text-indigo-400" />
+                          <p className="font-semibold text-sm">No wallet requests found</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Try adjusting your search query or filter tab.
+                          </p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRequests.map((r) => {
+                        const statusColors = {
+                          Pending: 'bg-amber-100 text-amber-800 border-amber-200',
+                          Approved: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                          Rejected: 'bg-red-100 text-red-800 border-red-200',
+                        };
+
+                        return (
+                          <tr key={r.id} className="hover:bg-indigo-50/40 transition">
+                            <td className="px-4 py-3 font-bold text-indigo-900">{r.id}</td>
+                            <td className="px-4 py-3 text-gray-600">{r.date}</td>
+                            <td className="px-4 py-3 font-semibold text-gray-800">{r.memberId}</td>
+                            <td className="px-4 py-3 font-bold text-gray-900">{r.memberName}</td>
+                            <td className="px-4 py-3 text-gray-600">{r.branchName}</td>
+                            <td className="px-4 py-3 font-bold text-emerald-700">
+                              ₹{(r.walletAmount || 0).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-gray-500 max-w-xs truncate">
+                              {r.remarks || '-'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wider ${
+                                  statusColors[r.status] || 'bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                {r.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {/* View Details Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    console.log('================ VIEWING WALLET REQUEST DETAILS ================', r);
+                                    setSelectedRequest(r);
+                                  }}
+                                  className="p-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg transition"
+                                  title="View Details"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+
+                                {/* Approve Button */}
+                                {r.status === 'Pending' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApprove(r.id)}
+                                      className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition"
+                                      title="Approve Request"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleReject(r.id)}
+                                      className="p-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition"
+                                      title="Reject Request"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                )}
+
+                                {/* Delete Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(r.id)}
+                                  className="p-1.5 bg-gray-100 text-red-600 hover:bg-red-50 rounded-lg transition"
+                                  title="Delete Request"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* ── VIEW DETAILS MODAL ─────────────────────────────────────────────── */}
+      {selectedRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200">
+            <div className="bg-[#3B3C6E] text-white px-5 py-3 flex items-center justify-between font-bold text-sm">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-purple-200" />
+                <span>WALLET REQUEST DETAILS - {selectedRequest.id}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedRequest(null)}
+                className="text-gray-300 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs text-gray-800">
+              <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                <div>
+                  <span className="text-gray-500 block font-semibold">Request ID</span>
+                  <span className="font-bold text-indigo-900 text-sm">{selectedRequest.id}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Application Date</span>
+                  <span className="font-bold">{selectedRequest.date}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Member ID</span>
+                  <span className="font-bold text-gray-900">{selectedRequest.memberId}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Member Name</span>
+                  <span className="font-bold text-gray-900">{selectedRequest.memberName}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Member Type</span>
+                  <span>{selectedRequest.memberType || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Member Age</span>
+                  <span>{selectedRequest.age || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Branch Name</span>
+                  <span className="font-semibold text-gray-800">{selectedRequest.branchName}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Requested Amount</span>
+                  <span className="font-extrabold text-emerald-700 text-sm">
+                    ₹{(selectedRequest.walletAmount || 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-gray-500 block font-semibold mb-1">Remarks / Purpose</span>
+                <div className="p-3 bg-slate-50 border border-gray-200 rounded-lg text-gray-700">
+                  {selectedRequest.remarks || 'No remarks provided.'}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-gray-500 font-semibold">Current Status:</span>
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                    selectedRequest.status === 'Approved'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : selectedRequest.status === 'Rejected'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {selectedRequest.status}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 px-5 py-3 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedRequest(null)}
+                className="px-5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white font-bold text-xs rounded-lg transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

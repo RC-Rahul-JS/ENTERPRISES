@@ -16,6 +16,7 @@ import LoanProducts from './pages/Loan/LoanProducts';
 import LoanInterestSlabs from './pages/Loan/LoanInterestSlabs';
 import LoanCalculator from './pages/Loan/LoanCalculator';
 import ApplyLoan from './pages/Loan/ApplyLoan';
+import ApplyWallet from './pages/Loan/ApplyWallet';
 import LoanRequests from './pages/Loan/LoanRequests';
 import AgentDesignation from './pages/Loan/AgentDesignation';
 import CreateAgent from './pages/Loan/CreateAgent';
@@ -138,6 +139,7 @@ function App() {
                 <Route path="interest_slabs" element={<LoanInterestSlabs/>} />
                 <Route path="loan_calculator" element={<LoanCalculator/>} />
                 <Route path="apply_loan" element={<ApplyLoan/>} />
+                <Route path="apply_wallet" element={<ApplyWallet/>} />
                 <Route path="loan_requests" element={<LoanRequests/>} />
                 <Route path="agent_designation" element={<AgentDesignation/>} />
                 <Route path="create_agent" element={<CreateAgent/>} />

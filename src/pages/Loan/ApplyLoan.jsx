@@ -708,7 +708,7 @@ const ApplyLoan = () => {
                       const code = b.BranchCode || b.code || '';
                       const val = name || code;
                       return (
-                        <option key={b._id || idx} value={val}>
+                        <option key={`branch_${b._id || b.BranchCode || idx}_${idx}`} value={val}>
                           {name} {code ? `(${code})` : ''}
                         </option>
                       );

@@ -17,12 +17,12 @@ import LoanInterestSlabs from './pages/Loan/LoanInterestSlabs';
 import LoanCalculator from './pages/Loan/LoanCalculator';
 import ApplyLoan from './pages/Loan/ApplyLoan';
 import ApplyWallet from './pages/Loan/ApplyWallet';
-import WalletRequests from './pages/Loan/WalletRequests';
 import WalletPayment from './pages/Loan/WalletPayment';
 import WalletWithdrawal from './pages/Loan/WalletWithdrawal';
 import LoanRequests from './pages/Loan/LoanRequests';
 import AgentDesignation from './pages/Loan/AgentDesignation';
 import CreateAgent from './pages/Loan/CreateAgent';
+import AgentList from './pages/Loan/AgentList';
 import Payments from './pages/Payments/Payments';
 import Reports from './pages/Reports/Reports';
 import Designation from './pages/Designation/Designation';
@@ -143,12 +143,12 @@ function App() {
                 <Route path="loan_calculator" element={<LoanCalculator/>} />
                 <Route path="apply_loan" element={<ApplyLoan/>} />
                 <Route path="apply_wallet" element={<ApplyWallet/>} />
-                <Route path="wallet_requests" element={<WalletRequests/>} />
                 <Route path="wallet_payment" element={<WalletPayment/>} />
                 <Route path="wallet_withdrawal" element={<WalletWithdrawal/>} />
                 <Route path="loan_requests" element={<LoanRequests/>} />
                 <Route path="agent_designation" element={<AgentDesignation/>} />
                 <Route path="create_agent" element={<CreateAgent/>} />
+                <Route path="agent_list" element={<AgentList/>} />
             </Route>
 
           <Route path="/register" element={<Register />} />

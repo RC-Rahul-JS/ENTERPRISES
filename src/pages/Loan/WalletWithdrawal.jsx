@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import { Loader, Search, Wallet, ArrowDownRight } from 'lucide-react';
 import { useLoader } from '../../context/LoaderContext';
 import { BASE_URL } from '../../config/api';
+import useApi from '../../api/useApi';
 
 const toast = {
   success: (msg) =>
@@ -47,6 +48,9 @@ const WalletWithdrawal = () => {
   const [name, setName] = useState('');
   const [branch, setBranch] = useState('');
   const [balance, setBalance] = useState('');
+  const [walletId, setWalletId] = useState('');
+
+  const { getData, postData } = useApi();
 
   // ── Section 1: Update Plan / Payment Mode ────────────────────────────────
   const [paymentMode, setPaymentMode] = useState('Cash');
@@ -68,9 +72,8 @@ const WalletWithdrawal = () => {
   // ── Section 3: Withdrawal Amount ─────────────────────────────────────────
   const [withdrawalAmount, setWithdrawalAmount] = useState('');
 
-  // Dropdowns & Search
   const [branches, setBranches] = useState([]);
-  const [allMembers, setAllMembers] = useState([]);
+  const [allAgents, setAllAgents] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [fetchingMember, setFetchingMember] = useState(false);
 
@@ -88,13 +91,13 @@ const WalletWithdrawal = () => {
       }
 
       try {
-        const memRes = await axios.get(`${BASE_URL}/get-members`);
-        let mList = Array.isArray(memRes.data)
-          ? memRes.data
-          : memRes.data?.data || memRes.data?.members || [];
-        setAllMembers(mList);
+        const agRes = await axios.get(`${BASE_URL}/agents`);
+        let aList = Array.isArray(agRes.data)
+          ? agRes.data
+          : agRes.data?.data || agRes.data?.agents || [];
+        setAllAgents(aList);
       } catch (err) {
-        console.error('[WalletWithdrawal] Error fetching members:', err);
+        console.error('[WalletWithdrawal] Error fetching agents:', err);
       }
     };
 
@@ -130,54 +133,57 @@ const WalletWithdrawal = () => {
       setName('');
       setBranch('');
       setBalance('');
-      return toast.error('Please enter Wallet Account Number / Member ID');
+      setWalletId('');
+      return toast.error('Please enter Wallet Account Number / Agent ID');
     }
 
     setFetchingMember(true);
     showLoader();
 
-    try {
-      // 1. Try direct search API
-      const api = `${BASE_URL}/members?memberId=${encodeURIComponent(trimmed)}`;
-      let match = null;
-      try {
-        const res = await axios.get(api);
-        if (res.data) {
-          const raw = res.data.data !== undefined ? res.data.data : res.data;
-          match = Array.isArray(raw) ? raw[0] : raw;
+    const getAgentNameForWallet = (r) => {
+      let resolvedName = r.agentName || r.AgentName;
+      if (!resolvedName || resolvedName.trim() === '' || resolvedName.trim().toLowerCase() === 'n/a') {
+        const ag = allAgents?.find(a => String(a._id) === String(r.agent_id) || String(a.agentCode) === String(r.agentCode));
+        if (ag) {
+          resolvedName = ag.agentName || ag.AgentName || ag.name || ag.Name || ag.memberName || ag.MemberName || `${ag.FirstName || ag.first_name || ''} ${ag.LastName || ag.last_name || ''}`.trim();
         }
-      } catch (e) {
-        // Fallback
       }
+      return resolvedName || 'Agent';
+    };
 
-      // 2. Fallback to loaded list
-      if (!match && allMembers && allMembers.length > 0) {
-        const target = trimmed.toLowerCase();
-        match = allMembers.find((m) => {
-          const mCode = String(m.memberId || m.MemberId || m.member_id || m.walletAccNo || '').trim().toLowerCase();
-          const mMongoId = String(m._id || m.id || '').trim().toLowerCase();
-          const mPhone = String(m.MobileNo || m.mobile || m.phone || '').trim().toLowerCase();
-          return mCode === target || mMongoId === target || mPhone === target;
-        });
-      }
+    try {
+      const res = await getData('/localprime/wallet/list');
+      const wallets = res?.data || [];
+      const match = wallets.find(w => 
+        (w.walletNumber || '').toLowerCase() === trimmed.toLowerCase() ||
+        (w.agentCode || '').toLowerCase() === trimmed.toLowerCase() ||
+        (w.agent_id || '').toLowerCase() === trimmed.toLowerCase()
+      );
 
       if (match) {
-        const fn = match.FirstName || match.firstname || match.first_name || '';
-        const ln = match.LastName || match.lastname || match.last_name || '';
-        const fullName = `${fn} ${ln}`.trim() || match.name || match.memberName || 'Member';
-        const bName = match.branchName || match.branch || branchName || 'Main Branch';
-        const bal = match.walletBalance || match.balance || match.wallet_balance || match.dueAmount || '0';
-
-        setName(fullName);
-        setBranch(bName);
-        setBalance(bal.toString());
-        toast.success('Wallet Account details fetched successfully');
+        // Fetch detailed wallet info
+        const detailsRes = await getData(`/localprime/wallet/details?wallet_id=${match._id}`);
+        if (detailsRes && detailsRes.success && detailsRes.data && detailsRes.data.wallet) {
+          const w = detailsRes.data.wallet;
+          setName(getAgentNameForWallet(w));
+          setBranch(w.branchName || branchName || 'Main Branch');
+          setBalance((w.availableCredit || 0).toString());
+          setWalletId(w._id);
+          toast.success('Wallet details fetched successfully');
+        } else {
+           // Fallback to match
+           setName(getAgentNameForWallet(match));
+           setBranch(match.branchName || branchName || 'Main Branch');
+           setBalance((match.availableCredit || 0).toString());
+           setWalletId(match._id);
+           toast.success('Wallet details fetched successfully');
+        }
       } else {
-        toast.error(`No active Wallet Account / Member found for "${trimmed}"`);
+        toast.error(`No active Wallet found for "${trimmed}"`);
       }
     } catch (err) {
       console.error('[WalletWithdrawal] Error searching wallet account:', err);
-      toast.error('Failed to fetch wallet account details');
+      toast.error('Failed to fetch wallet details');
     } finally {
       setFetchingMember(false);
       hideLoader();
@@ -212,107 +218,45 @@ const WalletWithdrawal = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!walletAccNo || !walletAccNo.trim()) return toast.error('Please enter Wallet A/c No.');
-    if (!name || !name.trim()) return toast.error('Please enter Account Name');
+    if (!walletId) return toast.error('Please search and select a valid wallet first.');
     if (!withdrawalAmount || parseFloat(withdrawalAmount) <= 0)
       return toast.error('Please enter a valid Withdrawal Amount');
 
     setSubmitting(true);
     showLoader();
 
-    // Resolve Branch ID
-    const bObj = branches.find((b) => {
-      const bName = b.BranchName || b.branchName || b.name || b.branch_name || '';
-      return bName === branchName || b._id === branchName || b.BranchCode === branchName;
-    });
-    const resolvedBranchId = bObj?._id || bObj?.id || bObj?.BranchCode || branchName;
-
-    // Calculate cash denomination breakdown object
-    const denominationBreakdown = {};
-    let calculatedCashTotal = 0;
-    DENOMINATIONS.forEach((denom) => {
-      const count = parseInt(cashCounts[denom], 10) || 0;
-      const lineTotal = count * denom;
-      denominationBreakdown[`${denom}x`] = { count, lineTotal };
-      calculatedCashTotal += lineTotal;
-    });
-
     const withdrawalPayload = {
-      branchName,
-      branch_id: resolvedBranchId,
-      date,
-      walletAccNo: walletAccNo.trim(),
-      name: name.trim(),
-      branch: branch || branchName,
-      balance: parseFloat(balance) || 0,
-      paymentMode,
-      creditTo,
-      cashEntry: paymentMode === 'Cash' ? denominationBreakdown : null,
-      calculatedCashTotal,
-      withdrawalAmount: parseFloat(withdrawalAmount) || 0,
-      status: 'Completed',
-      type: 'Wallet Withdrawal',
-      createdAt: new Date().toISOString(),
+      wallet_id: walletId,
+      amount: parseFloat(withdrawalAmount) || 0,
+      remarks: `Withdraw via ${paymentMode} - ${creditTo}`,
     };
 
-    // 🌟 LOG EVERYTHING TO BROWSER CONSOLE 🌟
-    console.log('================ WALLET WITHDRAWAL CREATED ================');
-    console.log('Withdrawal Payload Object:', withdrawalPayload);
-    console.log('Form Details:', {
-      branchName,
-      date,
-      walletAccNo,
-      name,
-      branch,
-      balance,
-      paymentMode,
-      creditTo,
-      withdrawalAmount,
-    });
-    console.log('Cash Denominations Breakdown:', denominationBreakdown);
-
-    // Endpoint fallback array for submission
-    const apiEndpoints = [
-      `${BASE_URL}/wallet-withdrawals`,
-      `${BASE_URL}/create-wallet-withdrawal`,
-      `${BASE_URL}/withdrawals`,
-    ];
-
-    let success = false;
-    let responseMsg = '';
-
-    for (const endpoint of apiEndpoints) {
-      try {
-        const res = await axios.post(endpoint, withdrawalPayload);
-        if (res.status === 200 || res.status === 201) {
-          success = true;
-          responseMsg = res.data?.message || 'Wallet Withdrawal processed successfully!';
-          break;
-        }
-      } catch (err) {
-        console.warn(`[WalletWithdrawal] Endpoint ${endpoint} failed:`, err?.response?.data || err.message);
+    try {
+      const res = await postData('/localprime/wallet/withdraw', withdrawalPayload);
+      if (res && res.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Wallet Withdrawal Created!',
+          html: `
+            <div style="text-align: left; font-size: 13px; line-height: 1.6;">
+              <p><b>Account No:</b> ${walletAccNo}</p>
+              <p><b>Name:</b> ${name}</p>
+              <p><b>Payment Mode:</b> ${paymentMode}</p>
+              <p><b>Withdrawal Amount:</b> <span style="color: #ef4444; font-weight: bold;">₹${parseFloat(withdrawalAmount).toLocaleString()}</span></p>
+              <p style="color: #6b7280; font-size: 11px; margin-top: 8px;">(Full data logged to browser console)</p>
+            </div>
+          `,
+          confirmButtonColor: '#2D336B',
+        });
+        resetForm();
       }
+    } catch (err) {
+      console.error('Failed to withdraw:', err);
+      toast.error(err.message || 'Failed to process withdrawal');
+    } finally {
+      setSubmitting(false);
+      hideLoader();
     }
-
-    setSubmitting(false);
-    hideLoader();
-
-    Swal.fire({
-      icon: 'success',
-      title: 'Wallet Withdrawal Created!',
-      html: `
-        <div style="text-align: left; font-size: 13px; line-height: 1.6;">
-          <p><b>Account No:</b> ${walletAccNo}</p>
-          <p><b>Name:</b> ${name}</p>
-          <p><b>Payment Mode:</b> ${paymentMode}</p>
-          <p><b>Withdrawal Amount:</b> <span style="color: #ef4444; font-weight: bold;">₹${parseFloat(withdrawalAmount).toLocaleString()}</span></p>
-          <p style="color: #6b7280; font-size: 11px; margin-top: 8px;">(Full data logged to browser console)</p>
-        </div>
-      `,
-      confirmButtonColor: '#2D336B',
-    });
-
-    resetForm();
   };
 
   // ── CSS Classes matching current Loan UI ──────────────────────────────────

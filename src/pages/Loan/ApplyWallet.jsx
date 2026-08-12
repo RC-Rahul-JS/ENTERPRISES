@@ -22,6 +22,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useLoader } from '../../context/LoaderContext';
 import { BASE_URL } from '../../config/api';
+import useApi from '../../api/useApi';
 
 const toast = {
   success: (msg) =>
@@ -48,69 +49,7 @@ const toast = {
     }),
 };
 
-// Initial Mock/Dummy Data for Wallet Applications List
-const INITIAL_DUMMY_WALLET_REQUESTS = [
-  {
-    id: 'WAL-2026-001',
-    date: '2026-08-05',
-    memberId: '0010006',
-    member_id: '64a0e101',
-    memberName: 'Rahul Sharma',
-    memberType: 'Regular',
-    age: '29',
-    branchName: 'Main Bhopal Branch',
-    branch_id: 'BR-01',
-    walletAmount: 15000,
-    remarks: 'Monthly business working capital top-up',
-    status: 'Pending',
-    createdAt: '2026-08-05 10:30 AM',
-  },
-  {
-    id: 'WAL-2026-002',
-    date: '2026-08-04',
-    memberId: '0010004',
-    member_id: '64a0e102',
-    memberName: 'Priya Verma',
-    memberType: 'Associate',
-    age: '34',
-    branchName: 'Indore Central',
-    branch_id: 'BR-02',
-    walletAmount: 25000,
-    remarks: 'Emergency wallet balance request',
-    status: 'Approved',
-    createdAt: '2026-08-04 02:15 PM',
-  },
-  {
-    id: 'WAL-2026-003',
-    date: '2026-08-03',
-    memberId: '0010009',
-    member_id: '64a0e103',
-    memberName: 'Amitabh Patel',
-    memberType: 'Agent',
-    age: '42',
-    branchName: 'Jabalpur Branch',
-    branch_id: 'BR-03',
-    walletAmount: 50000,
-    remarks: 'Agent commission wallet deposit',
-    status: 'Approved',
-    createdAt: '2026-08-03 11:45 AM',
-  },
-  {
-    id: 'WAL-2026-004',
-    date: '2026-08-02',
-    memberId: '0010012',
-    member_id: '64a0e104',
-    memberName: 'Suresh Kumar',
-    memberType: 'Ordinary',
-    age: '50',
-    branchName: 'Gwalior Main',
-    branch_id: 'BR-04',
-    walletAmount: 8000,
-    remarks: 'Personal wallet addition',
-    status: 'Rejected',
-    createdAt: '2026-08-02 04:00 PM',
-  },
-];
+// Dummy data removed
 
 const ApplyWallet = () => {
   const navigate = useNavigate();
@@ -127,11 +66,11 @@ const ApplyWallet = () => {
   const [date, setDate] = useState(today);
   const [branchName, setBranchName] = useState('');
 
-  // ── Member Details ────────────────────────────────────────────────────────
-  const [memberId, setMemberId] = useState('');
-  const [memberMongoId, setMemberMongoId] = useState('');
-  const [memberName, setMemberName] = useState('');
-  const [memberType, setMemberType] = useState('');
+  // ── Agent Details ────────────────────────────────────────────────────────
+  const [agentId, setAgentId] = useState('');
+  const [agentMongoId, setAgentMongoId] = useState('');
+  const [agentName, setAgentName] = useState('');
+  const [agentType, setAgentType] = useState('');
   const [age, setAge] = useState('');
 
   // ── Wallet Details ────────────────────────────────────────────────────────
@@ -140,15 +79,55 @@ const ApplyWallet = () => {
 
   // Dropdown & Search options
   const [branches, setBranches] = useState([]);
-  const [allMembers, setAllMembers] = useState([]);
+  const [allAgents, setAllAgents] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const [fetchingMember, setFetchingMember] = useState(false);
+  const [fetchingAgent, setFetchingAgent] = useState(false);
+  
+  // ── Wallet Requests List State ──────────────────────────────────────────
+  const [walletRequests, setWalletRequests] = useState([]);
+  const { getData, postData } = useApi();
 
-  // ── Wallet Requests List State (Mock DB) ─────────────────────────────────
-  const [walletRequests, setWalletRequests] = useState(INITIAL_DUMMY_WALLET_REQUESTS);
+  const fetchWallets = async () => {
+    try {
+      showLoader();
+      const res = await getData('/localprime/wallet/list');
+      if (res && res.success) {
+        setWalletRequests(res.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching wallets:', err);
+    } finally {
+      hideLoader();
+    }
+  };
+
+  useEffect(() => {
+    if (step === 2) {
+      fetchWallets();
+    }
+  }, [step]);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRequest, setSelectedRequest] = useState(null); // For View Modal
+  const [walletTransactions, setWalletTransactions] = useState([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  const handleViewDetails = async (r) => {
+    setSelectedRequest(r);
+    setWalletTransactions([]);
+    setLoadingDetails(true);
+    try {
+      const res = await getData(`/localprime/wallet/details?wallet_id=${r._id}`);
+      if (res && res.success) {
+        setSelectedRequest(res.data.wallet || r);
+        setWalletTransactions(res.data.transactions || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
 
   // ── Log list data on mount and whenever list updates ────────────────────
   useEffect(() => {
@@ -171,39 +150,46 @@ const ApplyWallet = () => {
       }
 
       try {
-        const memRes = await axios.get(`${BASE_URL}/get-members`);
-        let mList = Array.isArray(memRes.data)
-          ? memRes.data
-          : memRes.data?.data || memRes.data?.members || [];
-        setAllMembers(mList);
+        const agRes = await axios.get(`${BASE_URL}/agents`);
+        let aList = Array.isArray(agRes.data)
+          ? agRes.data
+          : agRes.data?.data || agRes.data?.agents || [];
+        setAllAgents(aList);
       } catch (err) {
-        console.error('[ApplyWallet] Error fetching members:', err);
+        console.error('[ApplyWallet] Error fetching agents:', err);
       }
     };
 
     fetchDropdowns();
   }, []);
 
-  // ── Helper to extract member data ─────────────────────────────────────────
-  const extractMemberData = (m) => {
-    const fn = m.FirstName || m.firstname || m.first_name || '';
-    const ln = m.LastName || m.lastname || m.last_name || '';
-    const fullName = `${fn} ${ln}`.trim() || m.name || m.memberName || m.member_name || '';
-    const type = m.MemberType || m.memberType || m.member_type || m.Category || m.category || 'Regular';
-    const ageVal = m.Age || m.age || m.memberAge || '';
+  // ── Helper to extract agent data ─────────────────────────────────────────
+  const extractAgentData = (m) => {
+    const fullName = m.agentName || m.AgentName || '';
+    const type = m.designationName || m.DesignationName || 'Agent';
+    let ageVal = m.Age || m.age || '';
+    
+    // Calculate age from DateOfBirth if present
+    if (!ageVal && (m.DateOfBirth || m.dateOfBirth)) {
+      const dob = new Date(m.DateOfBirth || m.dateOfBirth);
+      if (!isNaN(dob)) {
+        const diff = Date.now() - dob.getTime();
+        ageVal = Math.abs(new Date(diff).getUTCFullYear() - 1970).toString();
+      }
+    }
 
     return { fullName, type, age: ageVal };
   };
 
-  // ── Helper to fetch member from direct API endpoint ─────────────────────
-  const fetchMemberFromApi = async (mid) => {
+  // ── Helper to fetch agent from direct API endpoint ─────────────────────
+  const fetchAgentFromApi = async (mid) => {
     if (!mid || !mid.trim()) return null;
     try {
-      const api = `${BASE_URL}/members?memberId=${encodeURIComponent(mid.trim())}`;
+      const api = `${BASE_URL}/agents?agentCode=${encodeURIComponent(mid.trim())}`;
       const res = await axios.get(api);
       if (res.data) {
         const rawPayload = res.data.data !== undefined ? res.data.data : res.data;
-        if (!rawPayload) return null;
+        if (!rawPayload || rawPayload.length === 0) return null;
         const data = Array.isArray(rawPayload) ? rawPayload[0] : rawPayload;
         if (data && typeof data === 'object' && Object.keys(data).length > 0) {
           return data;
@@ -211,69 +197,68 @@ const ApplyWallet = () => {
       }
       return null;
     } catch (err) {
-      console.warn('[ApplyWallet] Direct member search fallback:', err?.message);
+      console.warn('[ApplyWallet] Direct agent search fallback:', err?.message);
       return null;
     }
   };
 
-  // ── Member ID Input & Search ─────────────────────────────────────────────
-  const handleMemberIdInputChange = (val) => {
-    setMemberId(val);
-    setMemberName('');
-    setMemberType('');
+  // ── Agent ID Input & Search ─────────────────────────────────────────────
+  const handleAgentIdInputChange = (val) => {
+    setAgentId(val);
+    setAgentName('');
+    setAgentType('');
     setAge('');
-    setMemberMongoId('');
+    setAgentMongoId('');
   };
 
-  const handleSearchMember = async () => {
-    const trimmed = memberId ? memberId.trim() : '';
+  const handleSearchAgent = async () => {
+    const trimmed = agentId ? agentId.trim() : '';
 
     if (!trimmed) {
-      setMemberName('');
-      setMemberType('');
+      setAgentName('');
+      setAgentType('');
       setAge('');
-      setMemberMongoId('');
-      return toast.error('Please enter Member ID to search');
+      setAgentMongoId('');
+      return toast.error('Please enter Agent ID to search');
     }
 
-    setFetchingMember(true);
+    setFetchingAgent(true);
     showLoader();
 
     try {
       // 1. Try API search endpoint
-      let match = await fetchMemberFromApi(trimmed);
+      let match = await fetchAgentFromApi(trimmed);
 
       // 2. Fallback to loaded list
-      if (!match && allMembers && allMembers.length > 0) {
+      if (!match && allAgents && allAgents.length > 0) {
         const target = trimmed.toLowerCase();
-        match = allMembers.find((m) => {
-          const mCode = String(m.memberId || m.MemberId || m.member_id || '').trim().toLowerCase();
+        match = allAgents.find((m) => {
+          const mCode = String(m.agentCode || m.AgentCode || '').trim().toLowerCase();
           const mMongoId = String(m._id || m.id || '').trim().toLowerCase();
           const mPhone = String(m.MobileNo || m.mobile || m.phone || '').trim().toLowerCase();
-          const mAadhar = String(m.Aadhar || m.aadhaar || m.aadhar || '').trim().toLowerCase();
-          return mCode === target || mMongoId === target || mPhone === target || mAadhar === target;
+          return mCode === target || mMongoId === target || mPhone === target;
         });
       }
 
       if (match) {
-        const mid = match.memberId || match.MemberId || match.member_id || match.member_no || match._id || trimmed;
+        const mid = match.agentCode || match._id || trimmed;
         const mongoId = match._id || match.id || mid;
-        const { fullName, type, age: ageVal } = extractMemberData(match);
+        const { fullName, type, age: ageVal } = extractAgentData(match);
 
-        setMemberId(mid);
-        setMemberMongoId(mongoId);
-        setMemberName(fullName);
-        setMemberType(type);
+        setAgentId(mid);
+        setAgentMongoId(mongoId);
+        setAgentName(fullName);
+        setAgentType(type);
         setAge(ageVal);
-        toast.success('Member details fetched successfully');
+        toast.success('Agent details fetched successfully');
       } else {
-        toast.error(`No active member found with ID "${trimmed}"`);
+        toast.error(`No active agent found with ID "${trimmed}"`);
       }
     } catch (err) {
-      console.error('[ApplyWallet] Error searching member:', err);
-      toast.error('Failed to fetch member details');
+      console.error('[ApplyWallet] Error searching agent:', err);
+      toast.error('Failed to fetch agent details');
     } finally {
-      setFetchingMember(false);
+      setFetchingAgent(false);
       hideLoader();
     }
   };
@@ -282,126 +267,85 @@ const ApplyWallet = () => {
   const resetForm = () => {
     setDate(today);
     setBranchName('');
-    setMemberId('');
-    setMemberMongoId('');
-    setMemberName('');
-    setMemberType('');
+    setAgentId('');
+    setAgentMongoId('');
+    setAgentName('');
+    setAgentType('');
     setAge('');
     setWalletAmount('');
     setRemarks('');
   };
 
   // ── Submit / Next Step Handler: Creates New Request & Goes to List View ───
-  const handleNextStep = (e) => {
+  const handleNextStep = async (e) => {
     e.preventDefault();
 
     if (!branchName) return toast.error('Please select Branch Name');
-    if (!memberId || !memberName) return toast.error('Please enter valid Member Details');
-    if (!walletAmount || parseFloat(walletAmount) <= 0)
-      return toast.error('Please enter a valid Wallet Amount');
+    if (!agentId || !agentName) return toast.error('Please enter valid Agent Details');
 
-    const bObj = branches.find((b) => {
-      const name = b.BranchName || b.branchName || b.name || b.branch_name || '';
-      return name === branchName || b._id === branchName || b.BranchCode === branchName;
-    });
-    const resolvedBranchId = bObj?._id || bObj?.id || bObj?.BranchCode || branchName;
-
-    // Create unique ID for new request
-    const newReqId = `WAL-2026-00${walletRequests.length + 1}`;
-
-    const newWalletRequest = {
-      id: newReqId,
-      date,
-      branchName,
-      branch_id: resolvedBranchId,
-      memberId,
-      member_id: memberMongoId || memberId,
-      memberName,
-      memberType: memberType || 'Regular',
-      age: age || '-',
-      walletAmount: parseFloat(walletAmount) || 0,
-      remarks: remarks || 'Wallet topup application',
-      status: 'Pending',
-      type: 'Wallet Application',
-      createdAt: new Date().toLocaleString(),
-    };
-
-    // 🌟 LOG DATA TO CONSOLE 🌟
-    console.log('================ NEW APPLY WALLET REQUEST CREATED ================');
-    console.log('Payload:', newWalletRequest);
-
-    // Add new request to top of list
-    setWalletRequests((prev) => [newWalletRequest, ...prev]);
-
-    Swal.fire({
-      icon: 'success',
-      title: 'Wallet Application Submitted!',
-      text: `Request ID ${newReqId} created successfully. Redirecting to Apply Wallet List.`,
-      confirmButtonColor: '#2D336B',
-      timer: 2000,
-    });
-
-    // Reset form and navigate to Wallet Requests list page
-    resetForm();
-    navigate('/loan/wallet_requests');
-  };
-
-  // ── Status Action Handlers for List Items (Approve / Reject / Delete) ─────
-  const handleApprove = (reqId) => {
-    console.log('================ APPROVING WALLET REQUEST ================', reqId);
-    setWalletRequests((prev) =>
-      prev.map((r) => (r.id === reqId ? { ...r, status: 'Approved' } : r))
-    );
-    toast.success(`Request ${reqId} Approved!`);
-  };
-
-  const handleReject = (reqId) => {
-    console.log('================ REJECTING WALLET REQUEST ================', reqId);
-    setWalletRequests((prev) =>
-      prev.map((r) => (r.id === reqId ? { ...r, status: 'Rejected' } : r))
-    );
-    toast.error(`Request ${reqId} Rejected!`);
-  };
-
-  const handleDelete = (reqId) => {
-    Swal.fire({
-      title: 'Are you sure?',
-      text: `Remove wallet request ${reqId} from list?`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Yes, delete it!',
-    }).then((res) => {
-      if (res.isConfirmed) {
-        console.log('================ DELETING WALLET REQUEST ================', reqId);
-        setWalletRequests((prev) => prev.filter((r) => r.id !== reqId));
-        toast.success(`Request ${reqId} deleted.`);
+    try {
+      setSubmitting(true);
+      const payload = {
+        agent_id: agentMongoId || agentId
+      };
+      
+      const res = await postData('/localprime/wallet/create', payload);
+      
+      if (res && res.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Wallet Created!',
+          text: `Wallet created successfully. See console for JSON data.`,
+          confirmButtonColor: '#2D336B',
+          timer: 2000,
+        });
+        
+        console.log('================ NEW APPLY WALLET REQUEST CREATED ================');
+        console.log('Payload:', res.data);
+        
+        resetForm();
       }
-    });
+    } catch (error) {
+      console.error('Error creating wallet:', error);
+      toast.error(error.message || 'Failed to create wallet');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // ── Filtered List Items ───────────────────────────────────────────────────
   const filteredRequests = walletRequests.filter((r) => {
     const matchesStatus =
-      statusFilter === 'ALL' || r.status.toLowerCase() === statusFilter.toLowerCase();
+      statusFilter === 'ALL' || r.status?.toLowerCase() === statusFilter.toLowerCase();
     const query = searchTerm.toLowerCase().trim();
     const matchesSearch =
       !query ||
-      r.id.toLowerCase().includes(query) ||
-      r.memberId.toLowerCase().includes(query) ||
-      r.memberName.toLowerCase().includes(query) ||
-      r.branchName.toLowerCase().includes(query);
+      r.walletNumber?.toLowerCase().includes(query) ||
+      r.agent_id?.toLowerCase().includes(query) ||
+      r.agentName?.toLowerCase().includes(query) ||
+      r.branchName?.toLowerCase().includes(query);
 
     return matchesStatus && matchesSearch;
   });
 
+  // ── Helper to dynamically find agent name if missing from wallet data ─────
+  const getAgentNameForWallet = (r) => {
+    if (!r) return 'N/A';
+    let name = r.agentName || r.AgentName;
+    if (!name || name.trim() === '' || name.trim().toLowerCase() === 'n/a') {
+      const ag = allAgents?.find(a => String(a._id) === String(r.agent_id) || String(a.agentCode) === String(r.agentCode));
+      if (ag) {
+        name = ag.agentName || ag.AgentName || ag.name || ag.Name || ag.memberName || ag.MemberName || `${ag.FirstName || ag.first_name || ''} ${ag.LastName || ag.last_name || ''}`.trim();
+      }
+    }
+    return name || 'N/A';
+  };
+
   // KPI Counts
   const counts = {
     ALL: walletRequests.length,
-    pending: walletRequests.filter((r) => r.status.toLowerCase() === 'pending').length,
-    approved: walletRequests.filter((r) => r.status.toLowerCase() === 'approved').length,
-    rejected: walletRequests.filter((r) => r.status.toLowerCase() === 'rejected').length,
+    active: walletRequests.filter((r) => r.status?.toLowerCase() === 'active').length,
+    inactive: walletRequests.filter((r) => r.status?.toLowerCase() === 'inactive').length,
   };
 
   // ── CSS Classes matching current Loan UI ──────────────────────────────────
@@ -520,38 +464,38 @@ const ApplyWallet = () => {
                   </div>
                 </div>
 
-                {/* ── Section 1: Member Details ───────────────────────────────── */}
+                {/* ── Section 1: Agent Details ───────────────────────────────── */}
                 <div className="rounded border border-gray-200">
-                  <SectionBanner title="Member Details" />
+                  <SectionBanner title="Agent Details" />
                   <div className="p-4 bg-white">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
                         <label className={labelCls}>
-                          Member ID <span className="text-red-500">*</span>
+                          Agent ID <span className="text-red-500">*</span>
                         </label>
                         <div className="relative flex items-center gap-1">
                           <input
                             type="text"
-                            value={memberId}
-                            onChange={(e) => handleMemberIdInputChange(e.target.value)}
+                            value={agentId}
+                            onChange={(e) => handleAgentIdInputChange(e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
-                                handleSearchMember();
+                                handleSearchAgent();
                               }
                             }}
                             onBlur={() => {}}
-                            placeholder="Member ID"
+                            placeholder="Agent ID"
                             className={inputCls}
                           />
                           <button
                             type="button"
                             onMouseDown={(e) => e.preventDefault()}
-                            onClick={handleSearchMember}
+                            onClick={handleSearchAgent}
                             className="px-2.5 py-1.5 bg-[#3B3C6E] hover:bg-[#2D336B] text-white rounded text-xs font-semibold flex items-center gap-1 shrink-0 transition shadow-sm"
-                            title="Search Member ID"
+                            title="Search Agent ID"
                           >
-                            {fetchingMember ? (
+                            {fetchingAgent ? (
                               <Loader className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <Search className="w-3.5 h-3.5" />
@@ -562,22 +506,22 @@ const ApplyWallet = () => {
                       </div>
 
                       <div>
-                        <label className={labelCls}>Member Name</label>
+                        <label className={labelCls}>Agent Name</label>
                         <input
                           type="text"
-                          value={memberName}
-                          onChange={(e) => setMemberName(e.target.value)}
-                          placeholder="Member Name"
+                          value={agentName}
+                          onChange={(e) => setAgentName(e.target.value)}
+                          placeholder="Agent Name"
                           className={inputCls}
                         />
                       </div>
 
                       <div>
-                        <label className={labelCls}>Member Type</label>
+                        <label className={labelCls}>Designation</label>
                         <input
                           type="text"
-                          value={memberType}
-                          onChange={(e) => setMemberType(e.target.value)}
+                          value={agentType}
+                          onChange={(e) => setAgentType(e.target.value)}
                           placeholder="Type"
                           className={inputCls}
                         />
@@ -752,13 +696,12 @@ const ApplyWallet = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-[#3B3C6E] text-white font-bold uppercase text-[11px] tracking-wider">
                     <tr>
-                      <th className="px-4 py-3 border-b border-indigo-900">Req. ID</th>
-                      <th className="px-4 py-3 border-b border-indigo-900">Date</th>
-                      <th className="px-4 py-3 border-b border-indigo-900">Member ID</th>
-                      <th className="px-4 py-3 border-b border-indigo-900">Member Name</th>
+                      <th className="px-4 py-3 border-b border-indigo-900">Wallet No.</th>
+                      <th className="px-4 py-3 border-b border-indigo-900">Agent ID</th>
+                      <th className="px-4 py-3 border-b border-indigo-900">Agent Name</th>
                       <th className="px-4 py-3 border-b border-indigo-900">Branch</th>
-                      <th className="px-4 py-3 border-b border-indigo-900">Wallet Amount</th>
-                      <th className="px-4 py-3 border-b border-indigo-900">Remarks</th>
+                      <th className="px-4 py-3 border-b border-indigo-900 text-right">Credit Limit</th>
+                      <th className="px-4 py-3 border-b border-indigo-900 text-right">Available Credit</th>
                       <th className="px-4 py-3 border-b border-indigo-900">Status</th>
                       <th className="px-4 py-3 border-b border-indigo-900 text-center">Actions</th>
                     </tr>
@@ -777,23 +720,21 @@ const ApplyWallet = () => {
                     ) : (
                       filteredRequests.map((r) => {
                         const statusColors = {
-                          Pending: 'bg-amber-100 text-amber-800 border-amber-200',
-                          Approved: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-                          Rejected: 'bg-red-100 text-red-800 border-red-200',
+                          active: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                          inactive: 'bg-gray-100 text-gray-800 border-gray-200',
                         };
 
                         return (
-                          <tr key={r.id} className="hover:bg-indigo-50/40 transition">
-                            <td className="px-4 py-3 font-bold text-indigo-900">{r.id}</td>
-                            <td className="px-4 py-3 text-gray-600">{r.date}</td>
-                            <td className="px-4 py-3 font-semibold text-gray-800">{r.memberId}</td>
-                            <td className="px-4 py-3 font-bold text-gray-900">{r.memberName}</td>
-                            <td className="px-4 py-3 text-gray-600">{r.branchName}</td>
-                            <td className="px-4 py-3 font-bold text-emerald-700">
-                              ₹{(r.walletAmount || 0).toLocaleString()}
+                          <tr key={r._id || r.walletNumber} className="hover:bg-indigo-50/40 transition">
+                            <td className="px-4 py-3 font-bold text-indigo-900">{r.walletNumber || r.WalletNumber || '-'}</td>
+                            <td className="px-4 py-3 font-semibold text-gray-800">{r.agentCode || r.AgentCode || '-'}</td>
+                            <td className="px-4 py-3 font-bold text-gray-900">{getAgentNameForWallet(r)}</td>
+                            <td className="px-4 py-3 text-gray-600">{r.branchName || r.BranchName || 'N/A'}</td>
+                            <td className="px-4 py-3 font-bold text-gray-700 text-right">
+                              ₹{(r.creditLimit || 0).toLocaleString()}
                             </td>
-                            <td className="px-4 py-3 text-gray-500 max-w-xs truncate">
-                              {r.remarks || '-'}
+                            <td className="px-4 py-3 font-bold text-emerald-700 text-right">
+                              ₹{(r.availableCredit || 0).toLocaleString()}
                             </td>
                             <td className="px-4 py-3">
                               <span
@@ -809,46 +750,11 @@ const ApplyWallet = () => {
                                 {/* View Details Button */}
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    console.log('================ VIEWING WALLET REQUEST DETAILS ================', r);
-                                    setSelectedRequest(r);
-                                  }}
+                                  onClick={() => handleViewDetails(r)}
                                   className="p-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg transition"
                                   title="View Details"
                                 >
                                   <Eye className="w-4 h-4" />
-                                </button>
-
-                                {/* Approve Button */}
-                                {r.status === 'Pending' && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleApprove(r.id)}
-                                      className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition"
-                                      title="Approve Request"
-                                    >
-                                      <Check className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleReject(r.id)}
-                                      className="p-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition"
-                                      title="Reject Request"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  </>
-                                )}
-
-                                {/* Delete Button */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleDelete(r.id)}
-                                  className="p-1.5 bg-gray-100 text-red-600 hover:bg-red-50 rounded-lg transition"
-                                  title="Delete Request"
-                                >
-                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
                             </td>
@@ -871,7 +777,7 @@ const ApplyWallet = () => {
             <div className="bg-[#3B3C6E] text-white px-5 py-3 flex items-center justify-between font-bold text-sm">
               <div className="flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-purple-200" />
-                <span>WALLET REQUEST DETAILS - {selectedRequest.id}</span>
+                <span>WALLET DETAILS - {selectedRequest.walletNumber}</span>
               </div>
               <button
                 type="button"
@@ -885,62 +791,113 @@ const ApplyWallet = () => {
             <div className="p-5 space-y-4 text-xs text-gray-800">
               <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
                 <div>
-                  <span className="text-gray-500 block font-semibold">Request ID</span>
-                  <span className="font-bold text-indigo-900 text-sm">{selectedRequest.id}</span>
+                  <span className="text-gray-500 block font-semibold">Wallet Number</span>
+                  <span className="font-bold text-indigo-900 text-sm">{selectedRequest.walletNumber}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500 block font-semibold">Application Date</span>
-                  <span className="font-bold">{selectedRequest.date}</span>
+                  <span className="text-gray-500 block font-semibold">Creation Date</span>
+                  <span className="font-bold">{new Date(selectedRequest.created_at || selectedRequest.createdAt || Date.now()).toLocaleDateString()}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500 block font-semibold">Member ID</span>
-                  <span className="font-bold text-gray-900">{selectedRequest.memberId}</span>
+                  <span className="text-gray-500 block font-semibold">Agent ID</span>
+                  <span className="font-bold text-gray-900">{selectedRequest.agentCode || selectedRequest.AgentCode || selectedRequest.agent_id}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500 block font-semibold">Member Name</span>
-                  <span className="font-bold text-gray-900">{selectedRequest.memberName}</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block font-semibold">Member Type</span>
-                  <span>{selectedRequest.memberType || '-'}</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block font-semibold">Member Age</span>
-                  <span>{selectedRequest.age || '-'}</span>
+                  <span className="text-gray-500 block font-semibold">Agent Name</span>
+                  <span className="font-bold text-gray-900">{getAgentNameForWallet(selectedRequest)}</span>
                 </div>
                 <div>
                   <span className="text-gray-500 block font-semibold">Branch Name</span>
-                  <span className="font-semibold text-gray-800">{selectedRequest.branchName}</span>
+                  <span className="font-semibold text-gray-800">{selectedRequest.branchName || selectedRequest.BranchName || 'N/A'}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500 block font-semibold">Requested Amount</span>
-                  <span className="font-extrabold text-emerald-700 text-sm">
-                    ₹{(selectedRequest.walletAmount || 0).toLocaleString()}
+                  <span className="text-gray-500 block font-semibold">Status</span>
+                  <span
+                    className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase inline-block mt-1 ${
+                      selectedRequest.status === 'active'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-gray-200 text-gray-800'
+                    }`}
+                  >
+                    {selectedRequest.status || 'Unknown'}
                   </span>
                 </div>
               </div>
 
-              <div>
-                <span className="text-gray-500 block font-semibold mb-1">Remarks / Purpose</span>
-                <div className="p-3 bg-slate-50 border border-gray-200 rounded-lg text-gray-700">
-                  {selectedRequest.remarks || 'No remarks provided.'}
+              <div className="grid grid-cols-2 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 mt-3">
+                <div>
+                  <span className="text-indigo-900 block font-semibold">Credit Limit</span>
+                  <span className="font-extrabold text-indigo-700 text-sm">
+                    ₹{(selectedRequest.creditLimit || 0).toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-emerald-900 block font-semibold">Available Credit</span>
+                  <span className="font-extrabold text-emerald-700 text-sm">
+                    ₹{(selectedRequest.availableCredit || 0).toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-600 block font-semibold">Used Credit</span>
+                  <span className="font-bold text-gray-700">
+                    ₹{(selectedRequest.usedCredit || 0).toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-600 block font-semibold">Total Deposited</span>
+                  <span className="font-bold text-gray-700">
+                    ₹{(selectedRequest.totalDeposit || 0).toLocaleString()}
+                  </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2">
-                <span className="text-gray-500 font-semibold">Current Status:</span>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                    selectedRequest.status === 'Approved'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : selectedRequest.status === 'Rejected'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-amber-100 text-amber-800'
-                  }`}
-                >
-                  {selectedRequest.status}
-                </span>
+              {/* TRANSACTIONS SECTION */}
+              <div className="mt-4 border border-gray-200 rounded-xl overflow-hidden">
+                <div className="bg-gray-100 px-3 py-2 font-bold text-gray-700 border-b border-gray-200 text-xs">
+                  Recent Transactions
+                </div>
+                <div className="max-h-48 overflow-y-auto bg-white">
+                  {loadingDetails ? (
+                    <div className="p-4 text-center text-gray-500 font-medium text-xs">Loading transactions...</div>
+                  ) : walletTransactions.length === 0 ? (
+                    <div className="p-4 text-center text-gray-400 font-medium text-xs">No transactions found</div>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-gray-50 sticky top-0 border-b border-gray-200 text-[10px] text-gray-500 uppercase">
+                        <tr>
+                          <th className="px-3 py-2">Date</th>
+                          <th className="px-3 py-2">Type</th>
+                          <th className="px-3 py-2 text-right">Amount</th>
+                          <th className="px-3 py-2">Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {walletTransactions.map(t => (
+                          <tr key={t._id} className="hover:bg-gray-50 transition">
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                              {new Date(t.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                t.type === 'deposit' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                              }`}>
+                                {t.type}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 font-bold text-right text-gray-800">
+                              ₹{t.amount.toLocaleString()}
+                            </td>
+                            <td className="px-3 py-2 text-gray-500 truncate max-w-[120px]" title={t.remarks || '-'}>
+                              {t.remarks || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
+
             </div>
 
             <div className="bg-gray-50 px-5 py-3 border-t border-gray-100 flex justify-end">

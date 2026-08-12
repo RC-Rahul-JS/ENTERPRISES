@@ -68,10 +68,10 @@ export const loan_tabs = [
     { label: 'LOAN CALCULATOR', route: 'loan_calculator' },
     { label: 'APPLY LOAN', route: 'apply_loan' },
     { label: 'APPLY WALLET', route: 'apply_wallet' },
-    { label: 'WALLET REQUESTS', route: 'wallet_requests' },
     { label: 'WALLET PAYMENT', route: 'wallet_payment' },
     { label: 'WALLET WITHDRAWAL', route: 'wallet_withdrawal' },
     { label: 'LOAN REQUESTS', route: 'loan_requests' },
     { label: 'AGENT DESIGNATION', route: 'agent_designation' },
     { label: 'CREATE AGENT', route: 'create_agent' },
+    { label: 'AGENT LIST', route: 'agent_list' },
   ];

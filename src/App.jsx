@@ -6,7 +6,7 @@ import Layout from './Layout/Layout';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import Tabs_layout from './Layout/Tabs_layout';
-import {ledger_tabs, loan_tabs, payments_tabs, report_tabs, setting_tabs, staff_tabs, trade_tabs } from './utils/tabs';
+import { ledger_tabs, loan_tabs, member_tabs, branch_tabs, agent_tabs, payments_tabs, report_tabs, setting_tabs, staff_tabs, trade_tabs } from './utils/tabs';
 import CreateMember from './pages/Loan/CreateMember';
 import MemberList from './pages/Loan/MemberList';
 import MemberRequests from './pages/Loan/MemberRequests';
@@ -23,6 +23,10 @@ import LoanRequests from './pages/Loan/LoanRequests';
 import AgentDesignation from './pages/Loan/AgentDesignation';
 import CreateAgent from './pages/Loan/CreateAgent';
 import AgentList from './pages/Loan/AgentList';
+import LoanDisbursement from './pages/Loan/LoanDisbursement';
+import InterestPosting from './pages/Loan/InterestPosting';
+import CustomerPayment from './pages/Loan/CustomerPayment';
+import PenaltyPosting from './pages/Loan/PenaltyPosting';
 import Payments from './pages/Payments/Payments';
 import Reports from './pages/Reports/Reports';
 import Designation from './pages/Designation/Designation';
@@ -131,14 +135,22 @@ function App() {
                 <Route path="inventory" element={<Inventory/>} />
             </Route>
 
-            <Route path="/loan/" element={<Tabs_layout tabs={loan_tabs} />} >
+            {/* ── Members ─────────────────────────────────────────── */}
+            <Route path="/members/" element={<Tabs_layout tabs={member_tabs} />}>
                 <Route path="" element={<CreateMember/>} />
-                <Route path="create_member" element={<CreateMember/>} />
                 <Route path="member_requests" element={<MemberRequests/>} />
                 <Route path="member_list" element={<MemberList/>} />
-                <Route path="create_branch" element={<CreateBranch/>} />
+            </Route>
+
+            {/* ── Branch ──────────────────────────────────────────── */}
+            <Route path="/branch/" element={<Tabs_layout tabs={branch_tabs} />}>
+                <Route path="" element={<CreateBranch/>} />
                 <Route path="branch_list" element={<BranchList/>} />
-                <Route path="loan_products" element={<LoanProducts/>} />
+            </Route>
+
+            {/* ── Loan Operations ─────────────────────────────────── */}
+            <Route path="/loan/" element={<Tabs_layout tabs={loan_tabs} />}>
+                <Route path="" element={<LoanProducts/>} />
                 <Route path="interest_slabs" element={<LoanInterestSlabs/>} />
                 <Route path="loan_calculator" element={<LoanCalculator/>} />
                 <Route path="apply_loan" element={<ApplyLoan/>} />
@@ -146,7 +158,15 @@ function App() {
                 <Route path="wallet_payment" element={<WalletPayment/>} />
                 <Route path="wallet_withdrawal" element={<WalletWithdrawal/>} />
                 <Route path="loan_requests" element={<LoanRequests/>} />
-                <Route path="agent_designation" element={<AgentDesignation/>} />
+                <Route path="loan_disbursement" element={<LoanDisbursement/>} />
+                <Route path="interest_posting" element={<InterestPosting/>} />
+                <Route path="customer_payment" element={<CustomerPayment/>} />
+                <Route path="penalty_posting" element={<PenaltyPosting/>} />
+            </Route>
+
+            {/* ── Agents ──────────────────────────────────────────── */}
+            <Route path="/agents/" element={<Tabs_layout tabs={agent_tabs} />}>
+                <Route path="" element={<AgentDesignation/>} />
                 <Route path="create_agent" element={<CreateAgent/>} />
                 <Route path="agent_list" element={<AgentList/>} />
             </Route>

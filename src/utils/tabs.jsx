@@ -57,21 +57,39 @@ export const trade_tabs = [
 
   ];
 
-export const loan_tabs = [
-    { label: 'CREATE MEMBER', route: '' },
+// ── Members ──────────────────────────────────────────────────────────────────
+export const member_tabs = [
+    { label: 'CREATE MEMBER',   route: '' },
     { label: 'MEMBER REQUESTS', route: 'member_requests' },
-    { label: 'MEMBER LIST', route: 'member_list' },
-    { label: 'CREATE BRANCH', route: 'create_branch' },
-    { label: 'BRANCH LIST', route: 'branch_list' },
-    { label: 'LOAN PRODUCTS', route: 'loan_products' },
-    { label: 'INTEREST SLAB', route: 'interest_slabs' },
-    { label: 'LOAN CALCULATOR', route: 'loan_calculator' },
-    { label: 'APPLY LOAN', route: 'apply_loan' },
-    { label: 'APPLY WALLET', route: 'apply_wallet' },
-    { label: 'WALLET PAYMENT', route: 'wallet_payment' },
+    { label: 'MEMBER LIST',     route: 'member_list' },
+  ];
+
+// ── Branch ───────────────────────────────────────────────────────────────────
+export const branch_tabs = [
+    { label: 'CREATE BRANCH', route: '' },
+    { label: 'BRANCH LIST',   route: 'branch_list' },
+  ];
+
+// ── Loan Operations ───────────────────────────────────────────────────────────
+export const loan_tabs = [
+    { label: 'LOAN PRODUCTS',     route: '' },
+    { label: 'INTEREST SLAB',     route: 'interest_slabs' },
+    { label: 'LOAN CALCULATOR',   route: 'loan_calculator' },
+    { label: 'APPLY LOAN',        route: 'apply_loan' },
+    { label: 'APPLY WALLET',      route: 'apply_wallet' },
+    { label: 'WALLET PAYMENT',    route: 'wallet_payment' },
     { label: 'WALLET WITHDRAWAL', route: 'wallet_withdrawal' },
-    { label: 'LOAN REQUESTS', route: 'loan_requests' },
-    { label: 'AGENT DESIGNATION', route: 'agent_designation' },
-    { label: 'CREATE AGENT', route: 'create_agent' },
-    { label: 'AGENT LIST', route: 'agent_list' },
-  ];
+    { label: 'LOAN REQUESTS',     route: 'loan_requests' },
+    { label: 'LOAN DISBURSEMENT', route: 'loan_disbursement' },
+    { label: 'INTEREST POSTING',  route: 'interest_posting' },
+    { label: 'CUSTOMER PAYMENT',  route: 'customer_payment' },
+    { label: 'PENALTY POSTING',   route: 'penalty_posting' },
+  ];
+
+// ── Agents ────────────────────────────────────────────────────────────────────
+export const agent_tabs = [
+    { label: 'AGENT DESIGNATION', route: '' },
+    { label: 'CREATE AGENT',      route: 'create_agent' },
+    { label: 'AGENT LIST',        route: 'agent_list' },
+  ];
+

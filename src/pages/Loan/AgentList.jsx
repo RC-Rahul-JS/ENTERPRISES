@@ -16,7 +16,20 @@ const AgentList = () => {
     setLoading(true);
     try {
       const res = await getData('/localprime/agents');
-      const list = res?.data || [];
+      
+      let list = [];
+      if (Array.isArray(res)) {
+        list = res;
+      } else if (Array.isArray(res?.data)) {
+        list = res.data;
+      } else if (res?.data?.data && Array.isArray(res.data.data)) {
+        list = res.data.data;
+      } else if (res?.data && typeof res.data === 'object') {
+        list = [res.data];
+      } else if (res && typeof res === 'object') {
+        list = [res];
+      }
+      
       setAgents(list);
     } catch (error) {
       console.error('Error fetching agents:', error);

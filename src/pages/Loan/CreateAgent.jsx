@@ -98,6 +98,7 @@ const CreateAgent = () => {
     branch_id: '',
     designation_id: '',
     introducer_code: '',
+    password: '',
   });
   const [memberInfo, setMemberInfo] = useState(null);
   const [memberLookupLoading, setMemberLookupLoading] = useState(false);
@@ -370,6 +371,7 @@ const CreateAgent = () => {
     if (!memberInfo) return toast.error('Please search and select a valid Member first');
     if (!memberInfo.mongoId) return toast.error('Could not resolve Member MongoDB ID. Please re-search.');
     if (!formData.introducer_code.trim()) return toast.error('Agent Code is required');
+    if (!formData.password.trim()) return toast.error('Password is required');
     if (!branch_id.trim()) return toast.error('Branch ID is required');
     if (!designation_id) return toast.error('Please select a Designation');
 
@@ -450,6 +452,7 @@ const CreateAgent = () => {
               introducer_code: formData.introducer_code.trim(),
             }
           : {}),
+        password: formData.password.trim(),
       };
       // Verify all 3 are MongoDB _id strings (24-char hex)
       console.log('%c[CreateAgent] ✅ Payload → POST /agent-requests', 'color:green;font-weight:bold');
@@ -468,6 +471,7 @@ const CreateAgent = () => {
         branch_id: '',
         designation_id: '',
         introducer_code: '',
+        password: '',
       });
       setMemberInfo(null);
       fetchRequests();
@@ -682,6 +686,25 @@ const CreateAgent = () => {
                   }))
                 }
                 placeholder="Enter Agent Code"
+                className={inputCls}
+              />
+            </div>
+
+            {/* Password */}
+            <div className="flex flex-col gap-1 min-w-[150px]">
+              <label>
+                Password <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.password}
+                onChange={(e) =>
+                  setFormData((p) => ({
+                    ...p,
+                    password: e.target.value,
+                  }))
+                }
+                placeholder="Enter Password"
                 className={inputCls}
               />
             </div>

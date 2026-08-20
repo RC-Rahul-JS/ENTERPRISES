@@ -7,11 +7,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     allowedHosts: [
-      "http://192.168.29.8:5001",
+      "http://192.168.29.39:5001",
     ],
     proxy: {
       '/badri_enterprises': {
-        target: 'http://192.168.29.8:5001',
+        target: 'http://192.168.29.39:5001',
         changeOrigin: true,
         secure: false,
       },

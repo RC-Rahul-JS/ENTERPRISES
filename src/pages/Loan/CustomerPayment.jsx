@@ -253,9 +253,14 @@ const CustomerPayment = () => {
               </div>
 
               {/* EMI Selection */}
-              {emis.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
-                  <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Select EMI</h2>
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
+                <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Select EMI</h2>
+                {emis.length === 0 ? (
+                  <div className="text-center py-6 text-gray-500">
+                    <p className="font-semibold">No EMIs found for this loan.</p>
+                    <p className="text-sm mt-1">Please ensure you have generated an EMI for this loan first using the 'Generate EMI Due' tab, or check if your backend '/emi-dues' route is working.</p>
+                  </div>
+                ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -296,8 +301,8 @@ const CustomerPayment = () => {
                       </tbody>
                     </table>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Payment Form */}
               {selectedEmi && (

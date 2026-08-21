@@ -25,6 +25,7 @@ import CreateAgent from './pages/Loan/CreateAgent';
 import AgentList from './pages/Loan/AgentList';
 import LoanDisbursement from './pages/Loan/LoanDisbursement';
 import InterestPosting from './pages/Loan/InterestPosting';
+import GenerateEmiDue from './pages/Loan/GenerateEmiDue';
 import CustomerPayment from './pages/Loan/CustomerPayment';
 import PenaltyPosting from './pages/Loan/PenaltyPosting';
 import Payments from './pages/Payments/Payments';
@@ -159,6 +160,7 @@ function App() {
                 <Route path="wallet_withdrawal" element={<WalletWithdrawal/>} />
                 <Route path="loan_requests" element={<LoanRequests/>} />
                 <Route path="loan_disbursement" element={<LoanDisbursement/>} />
+                <Route path="generate_emi_due" element={<GenerateEmiDue/>} />
                 <Route path="interest_posting" element={<InterestPosting/>} />
                 <Route path="customer_payment" element={<CustomerPayment/>} />
                 <Route path="penalty_posting" element={<PenaltyPosting/>} />

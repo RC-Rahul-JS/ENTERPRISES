@@ -81,6 +81,7 @@ export const loan_tabs = [
     { label: 'WALLET WITHDRAWAL', route: 'wallet_withdrawal' },
     { label: 'LOAN REQUESTS',     route: 'loan_requests' },
     { label: 'LOAN DISBURSEMENT', route: 'loan_disbursement' },
+    { label: 'GENERATE EMI DUE',  route: 'generate_emi_due' },
     { label: 'INTEREST POSTING',  route: 'interest_posting' },
     { label: 'CUSTOMER PAYMENT',  route: 'customer_payment' },
     { label: 'PENALTY POSTING',   route: 'penalty_posting' },

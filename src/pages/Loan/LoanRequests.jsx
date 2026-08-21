@@ -131,10 +131,12 @@ const LoanRequests = () => {
           item.approval_status ||
           'pending';
 
+        const actualLoanNo = item.loanNumber || item.loan_number || item.loanId || item.loan_id;
+        
         return {
           raw: item,
           id,
-          serialNo: `LR-${String(idx + 1).padStart(3, '0')}`,
+          serialNo: actualLoanNo || `LR-${String(idx + 1).padStart(3, '0')}`,
           status: rawStatus.toString().toLowerCase(),
           createdAt: item.created_at || item.createdAt || item.date || 'N/A',
           isApprovedLoan: false,
@@ -143,10 +145,12 @@ const LoanRequests = () => {
 
       const normalizedApproved = rawApprovedLoans.map((item, idx) => {
         const id = item.loan_id || item.loanId || item._id || item.id || `LOAN-${idx + 1}`;
+        const actualLoanNo = item.loanNumber || item.loan_number || item.loanId || item.loan_id;
+        
         return {
           raw: item,
           id,
-          serialNo: `LN-${String(idx + 1).padStart(3, '0')}`,
+          serialNo: actualLoanNo || `LN-${String(idx + 1).padStart(3, '0')}`,
           status: 'approved',
           createdAt: item.created_at || item.createdAt || item.date || item.approved_at || 'N/A',
           isApprovedLoan: true,
@@ -229,7 +233,20 @@ const LoanRequests = () => {
 
     try {
       const res = await loanService.updateLoanApproval(requestId, payload);
-      toast.success(res?.message || `Loan request ${newStatus} successfully!`);
+      
+      const ln = res?.loanNumber || res?.loan_number || res?.data?.loanNumber || res?.data?.loan_number || res?.loanId || res?.loan_id;
+      
+      if (newStatus === 'approved' && ln) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Loan Approved Successfully!',
+          html: `<p>The loan request has been approved.</p><p class="mt-2 text-lg">Generated Loan Number: <strong class="text-purple-700">${ln}</strong></p>`,
+          confirmButtonColor: '#9333ea',
+        });
+      } else {
+        toast.success(res?.message || `Loan request ${newStatus} successfully!`);
+      }
+      
       fetchRequests();
     } catch (err) {
       console.error('[LoanRequests] Status update error:', err?.response?.data || err.message);

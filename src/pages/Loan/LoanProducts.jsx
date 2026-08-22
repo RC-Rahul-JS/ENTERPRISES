@@ -11,7 +11,7 @@ import {
   CheckCircle,
   XCircle,
 } from 'lucide-react';
-import { BASE_URL } from '../../config/api';
+import { BASE_URL as localprimeBase } from '../../config/api';
 const toast = {
   success: (msg) =>
     Swal.fire({

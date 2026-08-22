@@ -15,11 +15,17 @@ import { BASE_URL } from '../config/api';
  * - POST /interest-posting                     : Post interest for a single loan
  * - GET  /interest-posting-list                : List loans due for interest on a date
  * - POST /interest-posting-batch               : Batch post interest for all loans on a date
- * - POST /generate-emi-due                     : Generate EMI due record
+ * - POST /generate-emi-due                     : Generate single EMI due record
  * - POST /customer-payment                     : Receive a customer EMI payment
  * - POST /penalty-posting                      : Post penalty for a late EMI
  * - GET  /loan-closure-list                    : List loans eligible for closure
  * - GET  /emi-dues                             : Fetch EMI dues for a loan
+ * ── Repayment Schedule ──
+ * - POST /repayment-schedule                   : Generate full repayment schedule (all EMIs)
+ * - GET  /repayment-schedule/<loan_number>     : Get repayment schedule with summary
+ * - GET  /customer-payment-due/<loan_number>   : Get current dues for a loan
+ * - GET  /customer-payment-history/<loan_number>: Get full payment history
+ * - GET  /customer-loan-summary/<loan_number>  : Get complete loan summary
  */
 
 const getHeaders = (customHeaders = {}) => ({
@@ -296,6 +302,88 @@ export const loanService = {
       return res.data;
     } catch (error) {
       console.error('[loanService] getLoanClosureList error:', error);
+      throw error;
+    }
+  },
+
+  // ── Repayment Schedule ────────────────────────────────────────────────────
+  /**
+   * POST /repayment-schedule
+   * Generate full repayment schedule (all EMIs at once) for a disbursed loan.
+   * payload: { loan_number, first_installment_date }
+   */
+  createRepaymentSchedule: async (payload) => {
+    try {
+      const res = await axios.post(`${BASE_URL}/repayment-schedule`, payload, {
+        headers: getHeaders(),
+      });
+      return res.data;
+    } catch (error) {
+      console.error('[loanService] createRepaymentSchedule error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * GET /repayment-schedule/<loan_number>
+   * Get the full repayment schedule with summary for a loan.
+   */
+  getRepaymentSchedule: async (loanNumber) => {
+    try {
+      const res = await axios.get(`${BASE_URL}/repayment-schedule/${loanNumber}`, {
+        headers: getHeaders(),
+      });
+      return res.data;
+    } catch (error) {
+      console.error('[loanService] getRepaymentSchedule error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * GET /customer-payment-due/<loan_number>
+   * Get current dues (due today or overdue) for a loan.
+   */
+  getCustomerPaymentDue: async (loanNumber) => {
+    try {
+      const res = await axios.get(`${BASE_URL}/customer-payment-due/${loanNumber}`, {
+        headers: getHeaders(),
+      });
+      return res.data;
+    } catch (error) {
+      console.error('[loanService] getCustomerPaymentDue error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * GET /customer-payment-history/<loan_number>
+   * Get full payment history for a loan.
+   */
+  getCustomerPaymentHistory: async (loanNumber) => {
+    try {
+      const res = await axios.get(`${BASE_URL}/customer-payment-history/${loanNumber}`, {
+        headers: getHeaders(),
+      });
+      return res.data;
+    } catch (error) {
+      console.error('[loanService] getCustomerPaymentHistory error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * GET /customer-loan-summary/<loan_number>
+   * Get a complete loan summary (totals, EMI counts, next payment).
+   */
+  getCustomerLoanSummary: async (loanNumber) => {
+    try {
+      const res = await axios.get(`${BASE_URL}/customer-loan-summary/${loanNumber}`, {
+        headers: getHeaders(),
+      });
+      return res.data;
+    } catch (error) {
+      console.error('[loanService] getCustomerLoanSummary error:', error);
       throw error;
     }
   },

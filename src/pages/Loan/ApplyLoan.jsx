@@ -1054,7 +1054,7 @@ const ApplyLoan = () => {
                       >
                         <option value="">Select Interest Type</option>
                         <option value="Flat">Flat</option>
-                        <option value="Declining Balance">Declining Balance</option>
+                        <option value="Reducing">Reducing</option>
                       </select>
                     </div>
 

@@ -12,15 +12,15 @@
 
 // Full base URL for the LocalPrime API
 // Defined in .env  →  VITE_LOCALPRIME_URL=https://api.care2connect.in/badri_enterprises/localprime
-export const BASE_URL = import.meta.env.VITE_LOCALPRIME_URL;
+export const BASE_URL = import.meta.env.VITE_LOCALPRIME_URL || 'https://api.care2connect.in/badri_enterprises/localprime';
 
 // Top-level API URL (without /localprime)
 // Defined in .env  →  VITE_API_URL=https://api.care2connect.in/badri_enterprises
-export const API_URL = import.meta.env.VITE_API_URL;
+export const API_URL = import.meta.env.VITE_API_URL || 'https://api.care2connect.in/badri_enterprises';
 
 // Raw server base (host only)
 // Defined in .env  →  VITE_API_BASE_URL=https://api.care2connect.in
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.care2connect.in';
 
 // Aadhar OTP endpoint
-export const AADHAR_OTP_URL = import.meta.env.VITE_AADHAR_OTP_URL;
+export const AADHAR_OTP_URL = import.meta.env.VITE_AADHAR_OTP_URL || 'https://apipoultry.duniyape.in/api/aadhar';

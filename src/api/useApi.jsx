@@ -5,7 +5,7 @@ import { useLoader } from "../context/LoaderContext";
 import { showErrorAlert } from "../utils/alerts";
 import Cookies from "js-cookie";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = import.meta.env.VITE_LOCALPRIME_URL || 'https://api.care2connect.in/badri_enterprises/localprime';
 // const token = Cookies.get('token');
 const useApi = () => {
   const { showLoader, hideLoader } = useLoader(); // Use global loader

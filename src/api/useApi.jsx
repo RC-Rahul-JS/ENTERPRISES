@@ -5,16 +5,24 @@ import { useLoader } from "../context/LoaderContext";
 import { showErrorAlert } from "../utils/alerts";
 import Cookies from "js-cookie";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-// const token = Cookies.get('token');
+const API_BASE_URL = import.meta.env.VITE_LOCALPRIME_URL || 'https://api.care2connect.in/badri_enterprises/localprime';
+const API_URL_NO_LOCALPRIME = import.meta.env.VITE_API_URL || 'https://api.care2connect.in/badri_enterprises';
+
 const useApi = () => {
   const { showLoader, hideLoader } = useLoader(); // Use global loader
+
+  const getBaseUrl = (endpoint) => {
+    // Request specifically for login removes localprime
+    return endpoint === '/trade/login' ? API_URL_NO_LOCALPRIME : API_BASE_URL;
+  };
+
   const getData = useCallback(async (endpoint, config = {}) => {
-    console.log(`${API_BASE_URL}${endpoint}`)
+    const baseUrl = getBaseUrl(endpoint);
+    console.log(`${baseUrl}${endpoint}`)
     showLoader(); // Show loader when request starts
     const token = Cookies.get('token');
     try {
-      const response = await axios.get(`${API_BASE_URL}${endpoint}`, {
+      const response = await axios.get(`${baseUrl}${endpoint}`, {
         timeout: 15000,
         headers: {
          'ngrok-skip-browser-warning': 'true',
@@ -37,10 +45,11 @@ const useApi = () => {
   }, []);
 
   const postData = async (endpoint, postData, config = {}) => {
+  const baseUrl = getBaseUrl(endpoint);
   showLoader();
   const token = Cookies.get('token');
   try {
-    const response = await axios.post(`${API_BASE_URL}${endpoint}`, postData, {
+    const response = await axios.post(`${baseUrl}${endpoint}`, postData, {
       headers: {
         "Content-Type": "application/json",
         // "Authorization":`Bearer ${token}`,
@@ -67,10 +76,11 @@ const useApi = () => {
 
   
   const UpdateData = async (endpoint, postData, config = {}) => {
+    const baseUrl = getBaseUrl(endpoint);
     showLoader(); // Show loader when request starts
-    console.log(`${API_BASE_URL}${endpoint}`, postData);
+    console.log(`${baseUrl}${endpoint}`, postData);
     try {
-      const response = await axios.patch(`${API_BASE_URL}${endpoint}`, postData, {
+      const response = await axios.patch(`${baseUrl}${endpoint}`, postData, {
         headers: {
           "Content-Type": "application/json",
           // 'ngrok-skip-browser-warning': 'true',

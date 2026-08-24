@@ -7,11 +7,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     allowedHosts: [
-      "http://192.168.29.9:5001",
+      "https://api.care2connect.in",
     ],
     proxy: {
       '/badri_enterprises': {
-        target: 'http://192.168.29.9:5001',
+        target: 'https://api.care2connect.in',
         changeOrigin: true,
         secure: false,
       },

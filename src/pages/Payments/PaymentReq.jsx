@@ -22,7 +22,7 @@ const fetchDoctors = async () => {
     try {
       setLoading(true);
       const res = await fetch(
-    `https://api.care2connect.in/multiple_doctor-payment-request?from=${fromDate}&to=${toDate}&status=${status}`
+    `http://192.168.29.39:5001/multiple_doctor-payment-request?from=${fromDate}&to=${toDate}&status=${status}`
       );
       const data = await res.json();
       if (!data.error){
@@ -122,7 +122,7 @@ console.log(selectedData)
 try {
          
 setsubmitLoading(true)
-          const res = await fetch('https://api.care2connect.in/multiple_doctor-payment', {
+          const res = await fetch('http://192.168.29.39:5001/multiple_doctor-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(selectedData),

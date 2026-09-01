@@ -5,15 +5,15 @@ import { useLoader } from "../context/LoaderContext";
 import { showErrorAlert } from "../utils/alerts";
 import Cookies from "js-cookie";
 
-const API_BASE_URL = import.meta.env.VITE_LOCALPRIME_URL || 'https://api.care2connect.in/badri_enterprises/localprime';
-const API_URL_NO_LOCALPRIME = import.meta.env.VITE_API_URL || 'https://api.care2connect.in/badri_enterprises';
+const API_BASE_URL = import.meta.env.VITE_LOCALPRIME_URL || 'http://192.168.29.39:5001/badri_enterprises/localprime';
+const API_URL_NO_LOCALPRIME = import.meta.env.VITE_API_URL || 'http://192.168.29.39:5001/badri_enterprises';
 
 const useApi = () => {
   const { showLoader, hideLoader } = useLoader(); // Use global loader
 
   const getBaseUrl = (endpoint) => {
     // Request specifically for login removes localprime
-    return endpoint === '/trade/login' ? API_URL_NO_LOCALPRIME : API_BASE_URL;
+    return endpoint === '/trade/login' ? 'https://api.care2connect.in/badri_enterprises' : API_BASE_URL;
   };
 
   const getData = useCallback(async (endpoint, config = {}) => {

@@ -184,7 +184,7 @@ const excelDateToJSDate = (value) => {
   setLoading(true)
 
   try {
-    const res = await axios.post('https://api.care2connect.in/excel_razorpay_tax',result)
+    const res = await axios.post('http://192.168.29.39:5001/excel_razorpay_tax',result)
     console.log(res.data)
 
     Swal.fire({

@@ -62,7 +62,7 @@ const LoanProducts = () => {
   const fetchLoanProducts = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${localprimeBase}/loan-products`);
+      const res = await axios.get(`${BASE_URL}/loan-products`);
       console.log('=== [LOAN PRODUCTS] FETCH RESPONSE ===', res.data);
 
       let rawList = [];
@@ -175,7 +175,7 @@ const LoanProducts = () => {
     console.log('=== [CREATE LOAN PRODUCT] PAYLOAD ===', payload);
 
     try {
-      const res = await axios.post(`${localprimeBase}/loan-products`, payload, {
+      const res = await axios.post(`${BASE_URL}/loan-products`, payload, {
         headers: { 'Content-Type': 'application/json' },
       });
       console.log('=== [CREATE LOAN PRODUCT] SUCCESS ===', res.data);
@@ -191,7 +191,7 @@ const LoanProducts = () => {
         Object.keys(payload).forEach((key) => {
           fd.append(key, payload[key] || '');
         });
-        const res2 = await axios.post(`${localprimeBase}/loan-products`, fd, {
+        const res2 = await axios.post(`${BASE_URL}/loan-products`, fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         console.log('=== [CREATE LOAN PRODUCT] FORMDATA SUCCESS ===', res2.data);
@@ -260,7 +260,7 @@ const LoanProducts = () => {
 
     try {
       const res = await axios.post(
-        `${localprimeBase}/loan-products/${targetId}`,
+        `${BASE_URL}/loan-products/${targetId}`,
         payload,
         { headers: { 'Content-Type': 'application/json' } }
       );
@@ -276,7 +276,7 @@ const LoanProducts = () => {
           fd.append(key, payload[key] || '');
         });
         const res2 = await axios.post(
-          `${localprimeBase}/loan-products/${targetId}`,
+          `${BASE_URL}/loan-products/${targetId}`,
           fd,
           { headers: { 'Content-Type': 'multipart/form-data' } }
         );

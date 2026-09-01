@@ -12,9 +12,9 @@ console.log('Copied and modified Addmember.jsx');
 
 // 2. Create .env
 const envDest = 'C:/Users/pc/Desktop/agent/.env';
-const envContent = `VITE_API_BASE_URL=http://192.168.29.8:5001
-VITE_API_URL=http://192.168.29.8:5001/badri_enterprises
-VITE_LOCALPRIME_URL=http://192.168.29.8:5001/badri_enterprises/localprime
+const envContent = `VITE_API_BASE_URL=http://192.168.29.39:5001
+VITE_API_URL=http://192.168.29.39:5001/badri_enterprises
+VITE_LOCALPRIME_URL=http://192.168.29.39:5001/badri_enterprises/localprime
 VITE_AADHAR_OTP_URL=https://apipoultry.duniyape.in/api/aadhar
 `;
 fs.writeFileSync(envDest, envContent);

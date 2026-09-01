@@ -19,7 +19,7 @@ const fetchDoctors = async () => {
     try {
       setLoading(true);
       const res = await fetch(
-        `https://api.care2connect.in/multiple_payment_doctor?from=2025-09-01&to=${moment(date).add(1, 'days').format('YYYY-MM-DD')}`
+        `http://192.168.29.39:5001/multiple_payment_doctor?from=2025-09-01&to=${moment(date).add(1, 'days').format('YYYY-MM-DD')}`
       );
       const data = await res.json();
 
@@ -128,7 +128,7 @@ const selectedData = doctors
 try {
            setsubmitloading(true)
 
-          const res = await fetch('https://api.care2connect.in/multiple_doctor-payment-request', {
+          const res = await fetch('http://192.168.29.39:5001/multiple_doctor-payment-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(selectedData),

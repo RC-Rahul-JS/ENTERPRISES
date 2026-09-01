@@ -19,7 +19,7 @@ export default function PayDoctorVoucherPage() {
       try {
         setLoading(true);
         const res = await fetch(
-          'https://api.care2connect.in/v1/doctor/67ee5e1bde4cb48c515073ee'
+          'http://192.168.29.39:5001/v1/doctor/67ee5e1bde4cb48c515073ee'
         );
         const data = await res.json();
 
@@ -51,7 +51,7 @@ export default function PayDoctorVoucherPage() {
 
     try {
       setLoading(true);
-      const res = await fetch(`https://api.care2connect.in/v1/doctor/${doctorId}`);
+      const res = await fetch(`http://192.168.29.39:5001/v1/doctor/${doctorId}`);
       const data = await res.json();
 
       // 🔹 Force override name if this doctorId
@@ -126,7 +126,7 @@ export default function PayDoctorVoucherPage() {
             ledgerName: 'IDFC Bank',
           };
 
-          const res = await fetch('https://api.care2connect.in/doctor-payment', {
+          const res = await fetch('http://192.168.29.39:5001/doctor-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),

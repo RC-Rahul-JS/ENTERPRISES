@@ -9,7 +9,7 @@ const UploadFile = async (file) => {
 
   try {
     const response = await axios.post(
-      'https://api.care2connect.in/duniyape/aws/upload',
+      'http://192.168.29.39:5001/duniyape/aws/upload',
       formData
     );
     return response.data?.url || response.data?.location || 'xx';

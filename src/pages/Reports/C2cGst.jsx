@@ -58,7 +58,7 @@ const C2cGst = () => {
 
   async function getC2CReport() {
   try {
-    const response = await axios.get("https://api.care2connect.in/get_c2c_report", {
+    const response = await axios.get("http://192.168.29.39:5001/get_c2c_report", {
       params: {
         from: moment(fromDate).format('YYYY-MM-DD'),
         to: moment(toDate).format('YYYY-MM-DD')

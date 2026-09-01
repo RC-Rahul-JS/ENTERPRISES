@@ -51,7 +51,7 @@ export default function DoctorLedgerPage() {
     setLoading(true);
     setData(null);
 
-    const url = `https://api.care2connect.in/v1/doctor/${DoctorId}?from=${from}&to=${to}`;
+    const url = `http://192.168.29.39:5001/v1/doctor/${DoctorId}?from=${from}&to=${to}`;
 
     try {
       const response = await fetch(url, {

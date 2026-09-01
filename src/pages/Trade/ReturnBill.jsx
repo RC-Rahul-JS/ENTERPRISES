@@ -20,7 +20,7 @@ const ReturnBill = () => {
 
         setLoading(true);
         try {
-            const response = await axios.get(`https://api.care2connect.in/duniya_enterprises/trade/get_bill_by_invoice/${invoiceNumber}`);
+            const response = await axios.get(`http://192.168.29.39:5001/duniya_enterprises/trade/get_bill_by_invoice/${invoiceNumber}`);
             
             const invoiceData = response.data?.invoice || response.data;
             if (invoiceData && (invoiceData.id || invoiceData._id || invoiceData.items)) {

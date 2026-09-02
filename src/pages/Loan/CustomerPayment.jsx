@@ -106,20 +106,56 @@ const CustomerPayment = () => {
     return found > 0 ? found : penaltyRateRef.current; // use memory as fallback
   };
 
-  // ── Compute allocation ────────────────────────────────────────────────────
-  const penaltyDue   = parseFloat(selectedEmi?.penalty_amount || 0);
-  const interestDue  = parseFloat(selectedEmi?.interest_due   || 0);
-  const principalDue = parseFloat(selectedEmi?.principal_due  || 0);
-  const totalPayable = parseFloat(selectedEmi?.total_payable  || (penaltyDue + interestDue + principalDue));
-  const amount       = parseFloat(paymentAmount) || 0;
+  // ── Compute allocation (matching backend exactly) ─────────────────────────
+  // IMPORTANT: Use EMI-level penalty_amount from backend (already computed
+  // correctly with: installment × penalty_rate/100 × delay_days).
+  // Do NOT use loan.penalty_outstanding — that's a stale loan-level field.
+  const penaltyDue = parseFloat(
+    selectedEmi?.penalty_amount > 0
+      ? selectedEmi.penalty_amount
+      : (loan?.penalty_outstanding || 0)
+  );
+
+  const interestDueFull     = parseFloat(selectedEmi?.interest_due || 0);
+  const alreadyInterestPaid = parseFloat(selectedEmi?.interest_paid || 0);
+  let remainingInterest     = Math.max(interestDueFull - alreadyInterestPaid, 0);
+
+  const principalDueFull     = parseFloat(selectedEmi?.principal_due || 0);
+  const alreadyPrincipalPaid = parseFloat(selectedEmi?.principal_paid || 0);
+  let remainingPrincipal     = Math.max(principalDueFull - alreadyPrincipalPaid, 0);
+
+  const emiInstallment  = parseFloat(selectedEmi?.installment || 0);
+  const emiPaidAmount   = parseFloat(selectedEmi?.paid_amount  || 0);
+  const maxEmiRemaining = Math.max(emiInstallment - emiPaidAmount, 0);
+
+  // Prevent aggregated summary values from busting the backend's strict single-EMI limit
+  if (emiInstallment > 0 && (remainingInterest + remainingPrincipal) > maxEmiRemaining) {
+    if (remainingInterest > maxEmiRemaining) {
+      remainingInterest  = maxEmiRemaining;
+      remainingPrincipal = 0;
+    } else {
+      remainingPrincipal = parseFloat((maxEmiRemaining - remainingInterest).toFixed(2));
+    }
+  }
+
+  // Total payable = penalty + interest + principal (all from EMI level)
+  // Use backend's total_payable directly if available, else compute
+  const totalPayable = parseFloat(
+    selectedEmi?.total_payable > 0
+      ? selectedEmi.total_payable
+      : (penaltyDue + remainingInterest + remainingPrincipal).toFixed(2)
+  );
+
+  const amount = parseFloat(paymentAmount) || 0;
 
   // Allocate: Penalty → Interest → Principal
   let bal = amount;
-  const penaltyPaid   = Math.min(bal, penaltyDue);   bal -= penaltyPaid;
-  const interestPaid  = Math.min(bal, interestDue);  bal -= interestPaid;
-  const principalPaid = Math.min(bal, principalDue); bal -= principalPaid;
-  // Excess = amount beyond total_payable (authoritative cap from API)
-  const excess = parseFloat(Math.max(0, amount - totalPayable).toFixed(2));
+  const penaltyPaid   = parseFloat(Math.min(bal, penaltyDue).toFixed(2));   bal = parseFloat((bal - penaltyPaid).toFixed(2));
+  const interestPaid  = parseFloat(Math.min(bal, remainingInterest).toFixed(2));  bal = parseFloat((bal - interestPaid).toFixed(2));
+  const principalPaid = parseFloat(Math.min(bal, remainingPrincipal).toFixed(2)); bal = parseFloat((bal - principalPaid).toFixed(2));
+
+  const excess = parseFloat(bal.toFixed(2)); // what's left is excess
+
 
   // ── Parse API response ────────────────────────────────────────────────────
   const parseResponse = (data) => {
@@ -237,14 +273,14 @@ const CustomerPayment = () => {
       emi_number:     enp.emi_number,
       due_date:       enp.due_date,
       installment:    enp.installment,
-      interest_due:   np.interest_due  ?? summaryInterest,
+      interest_due:   np.interest_due !== undefined ? np.interest_due : (enp.installment ? 0 : summaryInterest),
       interest_paid:  0,
       paid_amount:    enp.paid_amount,
       penalty_amount: enp.penalty_amount,
       penalty_paid:   0,
       penalty_rate:   enp.penalty_rate,
       pending_amount: enp.total_payable,
-      principal_due:  np.principal_due ?? summaryPrincipal,
+      principal_due:  np.principal_due !== undefined ? np.principal_due : (enp.installment ? enp.installment : summaryPrincipal),
       principal_paid: 0,
       remaining_emi:  enp.installment,
       delay_days:     enp.delay_days,
@@ -370,6 +406,11 @@ const CustomerPayment = () => {
       setResult(data);
       toast.success('Payment received successfully!');
     } catch (e) {
+      console.error("====== CUSTOMER PAYMENT ERROR ======");
+      console.error("Full Error Object:", e);
+      console.error("API Response Data:", e?.response?.data);
+      console.error("Error Message:", e?.message);
+      console.error("====================================");
       toast.error(e?.response?.data?.message || e?.message || 'Payment failed');
     } finally {
       setSubmitting(false);
@@ -592,7 +633,17 @@ const CustomerPayment = () => {
                         {emis.map((emi, i) => (
                           <tr
                             key={i}
-                            onClick={() => emi.status !== 'PAID' && (setSelectedEmi(emi), setPaymentAmount(emi.total_payable?.toFixed(2) || ''))}
+                            onClick={() => {
+                              if (emi.status !== 'PAID') {
+                                setSelectedEmi(emi);
+                                // Pre-fill with the safely capped installment amount to prevent over-filling 
+                                // if the backend sent aggregated amounts.
+                                const baseCap = (parseFloat(emi.installment || 0) - parseFloat(emi.paid_amount || 0)) || 0;
+                                const emiCap = baseCap + parseFloat(loan?.penalty_outstanding || emi.penalty_amount || 0);
+                                const safeAmt = emi.total_payable > emiCap && emiCap > 0 ? emiCap : emi.total_payable;
+                                setPaymentAmount(safeAmt?.toFixed(2) || '');
+                              }
+                            }}
                             className={`cursor-pointer transition-colors ${
                               selectedEmi?.emi_number === emi.emi_number
                                 ? 'bg-violet-50 border-l-4 border-violet-500'
@@ -642,11 +693,11 @@ const CustomerPayment = () => {
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5 p-3 bg-violet-50 rounded-xl border border-violet-100">
                     <StatCard label="Due Date"     value={selectedEmi.due_date} color="violet" />
                     <StatCard label="Installment"  value={fmt(selectedEmi.installment)} />
-                    <StatCard label="Penalty"      value={fmt(selectedEmi.penalty_amount)}
-                      sub={`${selectedEmi.delay_days > 0 ? selectedEmi.delay_days + 'd late' : 'No delay'}`}
-                      color={selectedEmi.penalty_amount > 0 ? 'red' : 'green'} />
+                    <StatCard label="Penalty Due"  value={fmt(penaltyDue)}
+                      sub="Loan-level outstanding"
+                      color={penaltyDue > 0 ? 'red' : 'green'} />
                     <StatCard label="Paid Amount"  value={fmt(selectedEmi.paid_amount)} color="green" />
-                    <StatCard label="Total Payable" value={fmt(selectedEmi.total_payable)} color="violet" />
+                    <StatCard label="Total Payable" value={fmt(totalPayable)} color="violet" />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">

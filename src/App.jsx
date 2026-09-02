@@ -27,6 +27,7 @@ import LoanDisbursement from './pages/Loan/LoanDisbursement';
 import InterestPosting from './pages/Loan/InterestPosting';
 import GenerateEmiDue from './pages/Loan/GenerateEmiDue';
 import CustomerPayment from './pages/Loan/CustomerPayment';
+import CustomerStatement from './pages/Loan/CustomerStatement';
 import PenaltyPosting from './pages/Loan/PenaltyPosting';
 import Payments from './pages/Payments/Payments';
 import Reports from './pages/Reports/Reports';
@@ -163,6 +164,7 @@ function App() {
                 <Route path="generate_emi_due" element={<GenerateEmiDue/>} />
                 <Route path="interest_posting" element={<InterestPosting/>} />
                 <Route path="customer_payment" element={<CustomerPayment/>} />
+                <Route path="customer_statement" element={<CustomerStatement/>} />
                 <Route path="penalty_posting" element={<PenaltyPosting/>} />
             </Route>
 

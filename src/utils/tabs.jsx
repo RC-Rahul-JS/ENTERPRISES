@@ -84,6 +84,7 @@ export const loan_tabs = [
     { label: 'GENERATE EMI DUE',  route: 'generate_emi_due' },
     { label: 'INTEREST POSTING',  route: 'interest_posting' },
     { label: 'CUSTOMER PAYMENT',  route: 'customer_payment' },
+    { label: 'CUSTOMER STATEMENT',route: 'customer_statement' },
     { label: 'PENALTY POSTING',   route: 'penalty_posting' },
   ];
 

@@ -249,6 +249,23 @@ export const loanService = {
     }
   },
 
+  // ── Customer Statement ──────────────────────────────────────────────────
+  /**
+   * GET /customer-statement/<loan_number>
+   * Fetch complete statement including EMI schedule and payment history
+   */
+  getCustomerStatement: async (loanNumber) => {
+    try {
+      const res = await axios.get(`${BASE_URL}/customer-statement/${loanNumber}`, {
+        headers: getHeaders(),
+      });
+      return res.data;
+    } catch (error) {
+      console.error('[loanService] getCustomerStatement error:', error);
+      throw error;
+    }
+  },
+
   // ── Customer Payment ──────────────────────────────────────────────────────
   /**
    * POST /customer-payment

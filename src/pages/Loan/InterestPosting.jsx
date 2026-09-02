@@ -192,7 +192,7 @@ const BatchPosting = () => {
         <h3 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide">Batch Interest Posting</h3>
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[200px]">
-            <Field label="Posting Date" required>
+            <Field label="Post Interest Up To Date" required>
               <input
                 id="batch-posting-date"
                 type="date"
@@ -200,6 +200,7 @@ const BatchPosting = () => {
                 value={postingDate}
                 onChange={e => { setPostingDate(e.target.value); setPreviewList(null); setBatchResult(null); }}
               />
+              <p className="text-xs text-amber-600 mt-1">⚡ All DISBURSED loans with interest due on or before this date will appear (including new loans with no posting yet).</p>
             </Field>
           </div>
           <button

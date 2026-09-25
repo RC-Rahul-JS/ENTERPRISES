@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 import useApi from "../../api/useApi";
+import { BASE_URL } from '../../config/api';
 export default function DoctorLedgerPage() {
   const [formData, setFormData] = useState({
     doctorId: '67ee5e1bde4cb48c515073ee', // In future, make this a dropdown
@@ -10,9 +11,9 @@ export default function DoctorLedgerPage() {
   });
   const [DoctorList, setDoctorList] = useState([])
   const [DoctorId, setdoctorId] = useState('67ee5e1bde4cb48c515073ee')
- const { getData } = useApi();
-   useEffect(() => {
-  
+  const { getData } = useApi();
+  useEffect(() => {
+
 
     const doctor_list = async () => {
       try {
@@ -51,7 +52,7 @@ export default function DoctorLedgerPage() {
     setLoading(true);
     setData(null);
 
-    const url = `http://192.168.29.39:5001/v1/doctor/${DoctorId}?from=${from}&to=${to}`;
+    const url = `${BASE_URL}/v1/doctor/${DoctorId}?from=${from}&to=${to}`;
 
     try {
       const response = await fetch(url, {
@@ -102,21 +103,21 @@ export default function DoctorLedgerPage() {
       >
 
         <div className="mb-4"> {/* Added mb-4 for spacing like the original */}
-  <label htmlFor="doctorId" className="block text-sm font-semibold text-gray-700 mb-2">Doctor ID</label>
-  <select
-    id="doctorId"
-    value={DoctorId}
-    onChange={(e)=>setdoctorId(e.target.value)}
-    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-blue-500 focus:border-blue-500"
-  >
-    <option value="" disabled>Select a Doctor ID</option> {/* Placeholder/Default option */}
-    {DoctorList.map((id) => (
-      <option key={id} value={id._id}>
-        {`${id.name} ( ${id.secondaryId} )`}
-      </option>
-    ))}
-  </select>
-</div>
+          <label htmlFor="doctorId" className="block text-sm font-semibold text-gray-700 mb-2">Doctor ID</label>
+          <select
+            id="doctorId"
+            value={DoctorId}
+            onChange={(e) => setdoctorId(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="" disabled>Select a Doctor ID</option> {/* Placeholder/Default option */}
+            {DoctorList.map((id) => (
+              <option key={id} value={id._id}>
+                {`${id.name} ( ${id.secondaryId} )`}
+              </option>
+            ))}
+          </select>
+        </div>
         {/* <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">Doctor ID</label>
           <input
@@ -262,12 +263,12 @@ export default function DoctorLedgerPage() {
                           {tx.voucher_number}
                         </td>
                         <td className="px-6 py-3">{tx.Payment_id}</td>
-                        
-                       
+
+
                         <td className="px-6 py-3 text-right text-red-700 font-medium">
                           ₹{formatAmount(tx.debit)}
                         </td>
-                         <td className="px-6 py-3 text-right text-green-700 font-medium">
+                        <td className="px-6 py-3 text-right text-green-700 font-medium">
                           ₹{formatAmount(tx.credit)}
                         </td>
                         <td className="px-6 py-3 text-right font-semibold">

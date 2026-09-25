@@ -4,6 +4,7 @@ import { useDropzone } from "react-dropzone";
 import axios from "axios";
 import Swal from "sweetalert2";
 import moment from "moment";
+import { BASE_URL } from '../../config/api';
 
 export default function ExcelUploader() {
   const [excelData, setExcelData] = useState([]);
@@ -14,48 +15,48 @@ export default function ExcelUploader() {
 
   // ✅ Excel Serial Date to JS Date (YYYY-MM-DD only)
 
-function convertDateFormat(dateStr) {
-  // Input format: YYYY-MM-DD
-  const [year, month, day] = dateStr.split("-");
-  return `${year}-${day}-${month}`;
-}
-const excelDateToJSDate = (value) => {
-  if (!value) return "";
-
-  // Case 1: Excel serial number (numeric)
-  if (typeof value === "number") {
-    const date = XLSX.SSF.parse_date_code(value);
-    if (date) {
-      return convertDateFormat(`${date.y}-${String(date.m).padStart(2, "0")}-${String(date.d).padStart(2, "0")}`)
-
-      // return `${date.y}-${String(date.m).padStart(2, "0")}-${String(date.d).padStart(2, "0")}`;
-    }
+  function convertDateFormat(dateStr) {
+    // Input format: YYYY-MM-DD
+    const [year, month, day] = dateStr.split("-");
+    return `${year}-${day}-${month}`;
   }
+  const excelDateToJSDate = (value) => {
+    if (!value) return "";
 
-  // Case 2: Already string
-  if (typeof value === "string") {
-    let d;
+    // Case 1: Excel serial number (numeric)
+    if (typeof value === "number") {
+      const date = XLSX.SSF.parse_date_code(value);
+      if (date) {
+        return convertDateFormat(`${date.y}-${String(date.m).padStart(2, "0")}-${String(date.d).padStart(2, "0")}`)
 
-    // Try ISO or US style parsing
-    d = new Date(value);
-    if (!isNaN(d.getTime())) {
-      return d.toISOString().split("T")[0];
-    }
-
-    // Try manual parse if DD/MM/YYYY or DD/MM/YYYY HH:mm:ss
-    const parts = value.split(/[/\s:]/); 
-    if (parts.length >= 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10);
-      const year = parseInt(parts[2], 10);
-      if (day && month && year) {
-        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        // return `${date.y}-${String(date.m).padStart(2, "0")}-${String(date.d).padStart(2, "0")}`;
       }
     }
-  }
 
-  return "";
-};
+    // Case 2: Already string
+    if (typeof value === "string") {
+      let d;
+
+      // Try ISO or US style parsing
+      d = new Date(value);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().split("T")[0];
+      }
+
+      // Try manual parse if DD/MM/YYYY or DD/MM/YYYY HH:mm:ss
+      const parts = value.split(/[/\s:]/);
+      if (parts.length >= 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10);
+        const year = parseInt(parts[2], 10);
+        if (day && month && year) {
+          return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        }
+      }
+    }
+
+    return "";
+  };
 
 
 
@@ -105,7 +106,7 @@ const excelDateToJSDate = (value) => {
       // ✅ Group data by date + calculate Grand Total
       const totals = {};
       let totalbank = 0,
-       totalFee = 0,
+        totalFee = 0,
         totalTax = 0,
         // totalGataway = 0,
         totalrazarpay = 0;
@@ -119,7 +120,7 @@ const excelDateToJSDate = (value) => {
         const razarpay = Number(row[5]) || 0;
 
         if (!totals[date]) {
-          totals[date] = {bank: 0, fee: 0, tax: 0, gataway: 0, razarpay: 0 };
+          totals[date] = { bank: 0, fee: 0, tax: 0, gataway: 0, razarpay: 0 };
         }
 
         totals[date].bank += bank;
@@ -137,7 +138,7 @@ const excelDateToJSDate = (value) => {
       });
 
       setDateWiseTotals(totals);
-      setGrandTotal({bank: totalbank, fee: totalFee, tax: totalTax, razarpay:totalrazarpay});
+      setGrandTotal({ bank: totalbank, fee: totalFee, tax: totalTax, razarpay: totalrazarpay });
     };
     reader.readAsArrayBuffer(file);
   };
@@ -157,63 +158,63 @@ const excelDateToJSDate = (value) => {
 
 
 
-  const submit = async() => {
-  const result = Object.entries(dateWiseTotals).map(([date, totals]) => {
-    // उस date की सारी rows filter कर लो
-    const entries = excelData
-      .slice(1) // header हटाना
-      .filter((row) => row[0] === date) // केवल उसी date की rows
-      .map((row) => ({
-        Payment_id: row[1], // entity_id
-        settlemant: Number(row[2]) || 0,
-        razorpay: Number(row[5]) || 0,
-        tax: Number(row[4]) || 0,
-        gataway_charges: Number(row[3]) || 0,
-      }));
+  const submit = async () => {
+    const result = Object.entries(dateWiseTotals).map(([date, totals]) => {
+      // उस date की सारी rows filter कर लो
+      const entries = excelData
+        .slice(1) // header हटाना
+        .filter((row) => row[0] === date) // केवल उसी date की rows
+        .map((row) => ({
+          Payment_id: row[1], // entity_id
+          settlemant: Number(row[2]) || 0,
+          razorpay: Number(row[5]) || 0,
+          tax: Number(row[4]) || 0,
+          gataway_charges: Number(row[3]) || 0,
+        }));
 
-    return {
-      date,
-      amount: parseFloat(parseFloat(totals.razarpay).toFixed(2)), // ✅ या केवल totals.fee चाहिए तो बदल सकते हो
-      bankamount: parseFloat(totals.bank).toFixed(2), // ✅ या केवल totals.fee चाहिए तो बदल सकते हो
-      entries,
-    };
-  });
-
-  console.log("Final JSON:", result);
-
-  setLoading(true)
-
-  try {
-    const res = await axios.post('http://192.168.29.39:5001/excel_razorpay_tax',result)
-    console.log(res.data)
-
-    Swal.fire({
-      icon: "success",
-      title: "Success",
-      text: "Vouchers created successfully!",
-      showConfirmButton: false,
-      timer: 2000,
+      return {
+        date,
+        amount: parseFloat(parseFloat(totals.razarpay).toFixed(2)), // ✅ या केवल totals.fee चाहिए तो बदल सकते हो
+        bankamount: parseFloat(totals.bank).toFixed(2), // ✅ या केवल totals.fee चाहिए तो बदल सकते हो
+        entries,
+      };
     });
-  setLoading(false)
 
-    setExcelData([])
-  setDateWiseTotals({})
-  setGrandTotal({ fee: 0, tax: 0, gataway: 0 })
+    console.log("Final JSON:", result);
 
-  } catch (error) {
-    console.log(error)
-  setLoading(false)
+    setLoading(true)
+
+    try {
+      const res = await axios.post(`${BASE_URL}/excel_razorpay_tax`, result)
+      console.log(res.data)
+
+      Swal.fire({
+        icon: "success",
+        title: "Success",
+        text: "Vouchers created successfully!",
+        showConfirmButton: false,
+        timer: 2000,
+      });
+      setLoading(false)
+
+      setExcelData([])
+      setDateWiseTotals({})
+      setGrandTotal({ fee: 0, tax: 0, gataway: 0 })
+
+    } catch (error) {
+      console.log(error)
+      setLoading(false)
 
 
-    Swal.fire({
-      icon: "error",
-      title: "Oops...",
-      text: error.response?.data?.error || "Something went wrong!",
-    });
-    
-  }
+      Swal.fire({
+        icon: "error",
+        title: "Oops...",
+        text: error.response?.data?.error || "Something went wrong!",
+      });
 
-};
+    }
+
+  };
 
 
 
@@ -298,7 +299,7 @@ const excelDateToJSDate = (value) => {
                 {/* <th style={{ border: "1px solid #ddd", padding: "8px" }}>
                   Gateway Charges
                 </th> */}
-                 <th style={{ border: "1px solid #ddd", padding: "8px" }}>
+                <th style={{ border: "1px solid #ddd", padding: "8px" }}>
                   Total Razorpay
                 </th>
               </tr>
@@ -344,7 +345,7 @@ const excelDateToJSDate = (value) => {
                 {/* <td style={{ border: "1px solid #ddd", padding: "8px" }}>
                   ₹{grandTotal.gataway.toFixed(2)}
                 </td> */}
-                 <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                <td style={{ border: "1px solid #ddd", padding: "8px" }}>
                   ₹{grandTotal.razarpay.toFixed(2)}
                 </td>
               </tr>
@@ -353,15 +354,15 @@ const excelDateToJSDate = (value) => {
         </div>
       )}
 
-  {  excelData.length > 0&&  <div className="flex justify-center mt-6">
-{!loading ? <button
-    onClick={submit}
-    type="submit"
-    className="px-8 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow transition transform hover:scale-105"
-  >
-    Create Vouchers
-  </button> : <p>Wait...</p>}
-</div>}
+      {excelData.length > 0 && <div className="flex justify-center mt-6">
+        {!loading ? <button
+          onClick={submit}
+          type="submit"
+          className="px-8 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow transition transform hover:scale-105"
+        >
+          Create Vouchers
+        </button> : <p>Wait...</p>}
+      </div>}
 
     </div>
   );

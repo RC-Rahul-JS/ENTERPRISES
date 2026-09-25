@@ -2,6 +2,7 @@ import moment from "moment";
 import React, { useState, useEffect } from "react";
 import { data } from "react-router-dom";
 import Swal from "sweetalert2";
+import { BASE_URL } from '../../config/api';
 
 export default function PaymentMultiple() {
   const [doctors, setDoctors] = useState([]);
@@ -19,7 +20,7 @@ const fetchDoctors = async () => {
     try {
       setLoading(true);
       const res = await fetch(
-        `http://192.168.29.39:5001/multiple_payment_doctor?from=2025-09-01&to=${moment(date).add(1, 'days').format('YYYY-MM-DD')}`
+        `${BASE_URL}/multiple_payment_doctor?from=2025-09-01&to=${moment(date).add(1, 'days').format('YYYY-MM-DD')}`
       );
       const data = await res.json();
 
@@ -128,7 +129,7 @@ const selectedData = doctors
 try {
            setsubmitloading(true)
 
-          const res = await fetch('http://192.168.29.39:5001/multiple_doctor-payment-request', {
+          const res = await fetch(`${BASE_URL}/multiple_doctor-payment-request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(selectedData),

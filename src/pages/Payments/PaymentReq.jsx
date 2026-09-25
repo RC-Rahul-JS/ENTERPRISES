@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Swal from "sweetalert2";
+import { BASE_URL } from '../../config/api';
 
 export default function PaymentReq() {
   const [doctors, setDoctors] = useState([]);
@@ -22,7 +23,7 @@ const fetchDoctors = async () => {
     try {
       setLoading(true);
       const res = await fetch(
-    `http://192.168.29.39:5001/multiple_doctor-payment-request?from=${fromDate}&to=${toDate}&status=${status}`
+    `${BASE_URL}/multiple_doctor-payment-request?from=${fromDate}&to=${toDate}&status=${status}`
       );
       const data = await res.json();
       if (!data.error){
@@ -122,7 +123,7 @@ console.log(selectedData)
 try {
          
 setsubmitLoading(true)
-          const res = await fetch('http://192.168.29.39:5001/multiple_doctor-payment', {
+          const res = await fetch(`${BASE_URL}/multiple_doctor-payment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(selectedData),

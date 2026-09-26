@@ -5,6 +5,7 @@ import { Search, User, Package, Trash2, CheckCircle, Plus, X, Calculator , Uploa
   Loader2} from 'lucide-react';
 import useApi from '../../api/useApi';
 import axios from 'axios';
+import { BASE_URL } from '../../config/api';
 
 const AccountingBillingUI = () => {
   // --- MOCK DATA ---
@@ -226,7 +227,7 @@ const AccountingBillingUI = () => {
 
   try {
     const response = await axios.post(
-      "http://192.168.29.39:5001/duniyape/aws/upload",
+      `${BASE_URL}/duniyape/aws/upload`,
       formData
     );
 

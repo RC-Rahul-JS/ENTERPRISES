@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import useApi from '../../api/useApi';
 import { ChevronDown, Printer, FileText } from 'lucide-react';
 import InvoiceView from './InvoiceView';
+import { BASE_URL } from '../../config/api';
 
 const ReturnBill = () => {
     const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -20,8 +21,7 @@ const ReturnBill = () => {
 
         setLoading(true);
         try {
-            const response = await axios.get(`http://192.168.29.39:5001/duniya_enterprises/trade/get_bill_by_invoice/${invoiceNumber}`);
-            
+            const response = await axios.get(`${BASE_URL}/trade/get_bill_by_invoice/${invoiceNumber}`);
             const invoiceData = response.data?.invoice || response.data;
             if (invoiceData && (invoiceData.id || invoiceData._id || invoiceData.items)) {
                 setBillDetails(invoiceData);
@@ -58,7 +58,7 @@ const ReturnBill = () => {
     const handleQtyChange = (itemId, qty) => {
         const value = parseFloat(qty);
         if (value < 0) return;
-        
+
         setSelectedItems(prev => ({
             ...prev,
             [itemId]: {
@@ -70,7 +70,7 @@ const ReturnBill = () => {
 
     const handleCreateReturnBill = async () => {
         const itemsToReturn = Object.values(selectedItems).filter(item => item.isSelected && item.returnQty > 0);
-        
+
         if (itemsToReturn.length === 0) {
             Swal.fire('Error', 'Please select at least one item and specify return quantity', 'warning');
             return;
@@ -92,7 +92,7 @@ const ReturnBill = () => {
         try {
             // Recalculate totals for the return bill
             const subtotal = itemsToReturn.reduce((sum, item) => sum + (parseFloat(item.rate || 0) * parseFloat(item.returnQty || 0)), 0);
-            
+
             const payload = {
                 ...billDetails, // Keep client address, gstin, etc.
                 id: `RET-${Date.now()}`,
@@ -107,16 +107,16 @@ const ReturnBill = () => {
                 gstsummary: {}, // simplified for demo
                 status: "returned"
             };
-            
+
             // Assuming there's an endpoint to post return bill. You can update this based on actual API.
             // await postData('/trade/return_bill', payload);
             console.log('Return bill payload:', payload);
-            
+
             Swal.fire('Success', 'Return bill created successfully (Demo)', 'success');
-            
+
             // Add to recent returns list
             setRecentReturnInvoices(prev => [payload, ...prev]);
-            
+
             setBillDetails(null);
             setInvoiceNumber('');
         } catch (error) {
@@ -175,23 +175,23 @@ const ReturnBill = () => {
     return (
         <div className="bg-gray-50 min-h-screen p-4">
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
+
                 {/* Main Return Form */}
                 <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-2xl border border-gray-100 no-print">
                     <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
                         <FileText className="w-5 h-5 mr-2 text-indigo-500" />
                         Create Return Bill
                     </h2>
-                    
+
                     <div className="flex space-x-4 mb-8">
-                        <input 
-                            type="text" 
+                        <input
+                            type="text"
                             value={invoiceNumber}
                             onChange={(e) => setInvoiceNumber(e.target.value)}
-                            placeholder="Enter Invoice Number (e.g. 2025-01-05-5)" 
+                            placeholder="Enter Invoice Number (e.g. 2025-01-05-5)"
                             className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
                         />
-                        <button 
+                        <button
                             onClick={handleSearch}
                             disabled={loading}
                             className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50"
@@ -232,8 +232,8 @@ const ReturnBill = () => {
                                                 return (
                                                     <tr key={id || index} className={isSelected ? "bg-indigo-50" : ""}>
                                                         <td className="px-4 py-3 text-center">
-                                                            <input 
-                                                                type="checkbox" 
+                                                            <input
+                                                                type="checkbox"
                                                                 checked={isSelected}
                                                                 onChange={() => handleItemToggle(id)}
                                                                 className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
@@ -243,8 +243,8 @@ const ReturnBill = () => {
                                                         <td className="px-4 py-3 text-sm text-gray-600 text-center">₹{item.rate}</td>
                                                         <td className="px-4 py-3 text-sm text-gray-600 text-center font-semibold">{item.qty}</td>
                                                         <td className="px-4 py-3 text-center">
-                                                            <input 
-                                                                type="number" 
+                                                            <input
+                                                                type="number"
                                                                 min="0"
                                                                 max={item.qty}
                                                                 step="0.1"
@@ -262,7 +262,7 @@ const ReturnBill = () => {
                                 </div>
 
                                 <div className="flex justify-end pt-4 border-t border-gray-100">
-                                    <button 
+                                    <button
                                         onClick={handleCreateReturnBill}
                                         className="px-8 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 shadow-md transition duration-150 flex items-center"
                                     >

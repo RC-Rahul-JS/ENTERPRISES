@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { BASE_URL } from '../config/api';
 
 const UploadFile = async (file) => {
   if (!file) return 'xx';
@@ -9,7 +10,7 @@ const UploadFile = async (file) => {
 
   try {
     const response = await axios.post(
-      'http://192.168.29.39:5001/duniyape/aws/upload',
+      `${BASE_URL}/duniyape/aws/upload`,
       formData
     );
     return response.data?.url || response.data?.location || 'xx';

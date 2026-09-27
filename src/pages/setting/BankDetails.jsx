@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router';
 import Cookies from 'js-cookie';
 import Swal from 'sweetalert2';
 import axios from 'axios';
+import { BASE_URL } from '../../config/api';
 
 // Helper components for icons
 const EyeOpenIcon = () => (
@@ -28,19 +29,19 @@ export default function BankDetails() {
   const [showConfirmAccount, setShowConfirmAccount] = useState(false);
 
 
-    const {id}=useParams()
+  const { id } = useParams()
   const [fee, setFee] = useState('');
 
   // Fetch current appointment fee
   useEffect(() => {
     const fetchdata = async () => {
       try {
-    const response = await axios.get(`http://192.168.29.39:5001/get_doctor/${id}/`);
-    console.log(response.data); // yaha doctors ka list milega
-    
-  } catch (error) {
-    console.error("Error fetching doctors:", error);
-  }
+        const response = await axios.get(`${BASE_URL}/get_doctor/${id}/`);
+        console.log(response.data); // yaha doctors ka list milega
+
+      } catch (error) {
+        console.error("Error fetching doctors:", error);
+      }
     };
     fetchdata();
   }, []);
@@ -73,7 +74,7 @@ export default function BankDetails() {
     const formData = { holderName, account, ifsc, bankDetails: { bank: bankDetails.BANK, branch: bankDetails.BRANCH } };
     alert("Form Submitted Successfully!\n" + JSON.stringify(formData, null, 2));
   };
-  
+
   // --- Validation ---
   const accountMatchError = account && confirmAccount && account !== confirmAccount;
   const isFormValid = holderName && account && !accountMatchError && bankDetails;
@@ -83,8 +84,8 @@ export default function BankDetails() {
     pageContainer: {
       display: "flex",
       justifyContent: "center",
-    //   alignItems: "center",
-    //   minHeight: "80vh",
+      //   alignItems: "center",
+      //   minHeight: "80vh",
       padding: "20px",
       backgroundColor: "#ffffffff",
       fontFamily: `'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif`,
@@ -221,7 +222,7 @@ export default function BankDetails() {
             className="custom-placeholder" // Apply custom placeholder style
           />
         </div>
-        
+
         {/* --- ROW 2: Account Numbers (Side-by-Side) --- */}
         <div style={styles.twoColumnLayout}>
           <div style={styles.column}>
@@ -277,7 +278,7 @@ export default function BankDetails() {
         </div>
 
         {/* Error Message Display */}
-        {error && <p style={{...styles.errorMessage, textAlign: 'center'}}>{error}</p>}
+        {error && <p style={{ ...styles.errorMessage, textAlign: 'center' }}>{error}</p>}
 
         {/* Verified Bank Details */}
         {bankDetails && (
@@ -289,7 +290,7 @@ export default function BankDetails() {
             <p style={styles.detailItem}><strong>Address:</strong> {bankDetails.ADDRESS}</p>
           </div>
         )}
-        
+
         {/* Submit Button */}
         <button
           type="submit"

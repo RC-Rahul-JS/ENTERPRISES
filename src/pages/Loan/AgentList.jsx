@@ -15,7 +15,7 @@ const AgentList = () => {
   const fetchAgents = async () => {
     setLoading(true);
     try {
-      const res = await getData('/localprime/agents');
+      const res = await getData('/agents');
       
       let list = [];
       if (Array.isArray(res)) {

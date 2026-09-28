@@ -205,29 +205,29 @@ const CreateAgent = () => {
     return '';
   };
 
-  // ── Helper: resolve member's OWN ID (never MemberId capital M which is introducer ID) ──
   const getMemberOwnId = (m) => {
     if (!m || typeof m !== 'object') return '';
-    if (m.agentCode) return String(m.agentCode).trim();
-    if (m.agent_code) return String(m.agent_code).trim();
-    if (m.AgentCode) return String(m.AgentCode).trim();
-    if (m.memberId) return String(m.memberId).trim();
-    if (m.member_id) return String(m.member_id).trim();
-    if (m.MemberNo) return String(m.MemberNo).trim();
-    if (m.memberNo) return String(m.memberNo).trim();
-    if (m.member_no) return String(m.member_no).trim();
-    if (m.MemberCode) return String(m.MemberCode).trim();
-    if (m.memberCode) return String(m.memberCode).trim();
+    let id =
+      m.agentCode || m.agent_code || m.AgentCode ||
+      m.memberId || m.member_id || m.MemberNo ||
+      m.memberNo || m.member_no || m.MemberCode ||
+      m.memberCode || m.member_code || '';
 
-    // Smart scan string fields for zero-padded number (e.g. 0010001) excluding MemberId (introducer)
-    for (const [k, v] of Object.entries(m)) {
-      const lk = k.toLowerCase();
-      if (lk === 'memberid') continue; // skip introducer ID field
-      if (typeof v === 'string' && /^0\d{4,11}$/.test(v.trim())) {
-        return v.trim();
+    if (!id) {
+      const paddedNumRe = /^0\d{4,11}$/;
+      for (const [k, v] of Object.entries(m)) {
+        const lk = String(k).toLowerCase();
+        if (lk === 'memberid' || lk.includes('name') || lk.includes('address') ||
+            lk.includes('phone') || lk.includes('email') || lk.includes('status') ||
+            lk.includes('date') || lk.includes('created') || lk.includes('upload') ||
+            lk.includes('kyc') || lk.includes('nom') || lk.includes('gur')) continue;
+        if (typeof v === 'string' && paddedNumRe.test(v.trim())) {
+          id = v.trim();
+          break;
+        }
       }
     }
-    return String(m._id || m.id || '').trim();
+    return String(id || m._id || m.id || '').trim();
   };
 
   // ── Member Lookup by Member ID ─────────────────────────────────────────────
@@ -253,7 +253,9 @@ const CreateAgent = () => {
       const d = rawList.find((m) => {
         const ownId = getMemberOwnId(m).toLowerCase();
         const mongoId = String(m._id || m.id || '').toLowerCase();
-        return ownId === search || mongoId === search;
+        const fallbackId = String(m.MemberId || '').toLowerCase();
+        
+        return ownId === search || mongoId === search || fallbackId === search;
       });
 
       // Debug — log all member IDs + the matched member so mismatches are visible
@@ -446,10 +448,15 @@ const CreateAgent = () => {
 
         ...(formData.introducer_code
           ? {
-              agentCode:       formData.introducer_code.trim(),
               agent_code:      formData.introducer_code.trim(),
+              agentCode:       formData.introducer_code.trim(),
               AgentCode:       formData.introducer_code.trim(),
               introducer_code: formData.introducer_code.trim(),
+              introducerCode:  formData.introducer_code.trim(),
+              introducerId:    formData.introducer_code.trim(),
+              IntroducerCode:  formData.introducer_code.trim(),
+              introducer:      formData.introducer_code.trim(),
+              IntroCode:       formData.introducer_code.trim(),
             }
           : {}),
         password: formData.password.trim(),
@@ -951,9 +958,10 @@ const CreateAgent = () => {
                     // ── Resolve Member Name ──────────────────────────────────
                     // Prefer name stored directly in the request (backend enriched)
                     // Fallback: look up in loaded members list by _id or memberId
-                    let memberName = r.member_name || r.name || '';
+                    let memberName = r.member_name || r.name || r.memberName || r.MemberName || '';
                     if (!memberName && (r.member_id || r.MemberId)) {
-                      const mId = String(r.member_id || r.MemberId || '');
+                      let rawMid = r.member_id || r.MemberId;
+                      const mId = typeof rawMid === 'object' ? String(rawMid.$oid || rawMid.oid || '') : String(rawMid || '');
                       const mem = (window.__allMembersCache || []).find(m =>
                         String(m._id || m.id || '').toLowerCase() === mId.toLowerCase() ||
                         getMemberOwnId(m).toLowerCase() === mId.toLowerCase()
@@ -961,7 +969,7 @@ const CreateAgent = () => {
                       if (mem) {
                         const fn = mem.FirstName || mem.firstname || mem.first_name || '';
                         const ln = mem.LastName  || mem.lastname  || mem.last_name  || '';
-                        memberName = `${fn} ${ln}`.trim() || mId;
+                        memberName = `${fn} ${ln}`.trim() || mem.MemberName || mem.memberName || mem.name || mId.slice(0, 8) + '...';
                       } else {
                         memberName = mId.slice(0, 8) + '...';
                       }
@@ -1100,14 +1108,15 @@ const CreateAgent = () => {
               const r = selectedReq;
 
               // Member Name
-              let mName = r.member_name || r.MemberName || r.name || '';
+              let mName = r.member_name || r.MemberName || r.name || r.memberName || '';
               if (!mName && (r.member_id || r.MemberId)) {
-                const mId = String(r.member_id || r.MemberId || '');
+                let rawMid = r.member_id || r.MemberId;
+                const mId = typeof rawMid === 'object' ? String(rawMid.$oid || rawMid.oid || '') : String(rawMid || '');
                 const mem = (window.__allMembersCache || []).find(m => String(m._id || m.id || '') === mId);
                 if (mem) {
                   const fn = mem.FirstName || mem.firstname || '';
                   const ln = mem.LastName  || mem.lastname  || '';
-                  mName = `${fn} ${ln}`.trim() || mem.MemberName || '';
+                  mName = `${fn} ${ln}`.trim() || mem.MemberName || mem.memberName || mem.name || '';
                 }
               }
 

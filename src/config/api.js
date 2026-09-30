@@ -12,7 +12,7 @@
 // ✅ THE ONE URL TO RULE THEM ALL — change this and everything updates
 export const BASE_URL =
   import.meta.env.VITE_LOCALPRIME_URL ||
-  'https://api.care2connect.in/badri_enterprises/localprime';
+  '/badri_enterprises/localprime';
 
 // Aadhar OTP endpoint (separate service — do not change with BASE_URL)
 export const AADHAR_OTP_URL =

@@ -21,6 +21,8 @@ import WalletPayment from './pages/Loan/WalletPayment';
 import WalletWithdrawal from './pages/Loan/WalletWithdrawal';
 import LoanRequests from './pages/Loan/LoanRequests';
 import AgentDesignation from './pages/Loan/AgentDesignation';
+import AgentCommission from './pages/Loan/AgentCommission';
+import CommissionLevels from './pages/Loan/CommissionLevels';
 import CreateAgent from './pages/Loan/CreateAgent';
 import AgentList from './pages/Loan/AgentList';
 import LoanDisbursement from './pages/Loan/LoanDisbursement';
@@ -171,6 +173,8 @@ function App() {
             {/* ── Agents ──────────────────────────────────────────── */}
             <Route path="/agents/" element={<Tabs_layout tabs={agent_tabs} />}>
                 <Route path="" element={<AgentDesignation/>} />
+                <Route path="commission" element={<AgentCommission/>} />
+                <Route path="commission_levels" element={<CommissionLevels/>} />
                 <Route path="create_agent" element={<CreateAgent/>} />
                 <Route path="agent_list" element={<AgentList/>} />
             </Route>

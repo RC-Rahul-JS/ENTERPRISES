@@ -90,8 +90,10 @@ export const loan_tabs = [
 
 // ── Agents ────────────────────────────────────────────────────────────────────
 export const agent_tabs = [
-    { label: 'AGENT DESIGNATION', route: '' },
-    { label: 'CREATE AGENT',      route: 'create_agent' },
-    { label: 'AGENT LIST',        route: 'agent_list' },
+    { label: 'AGENT DESIGNATION',  route: '' },
+    { label: 'COMMISSION LEVELS',  route: 'commission_levels' },
+    { label: 'AGENT COMMISSION',   route: 'commission' },
+    { label: 'CREATE AGENT',       route: 'create_agent' },
+    { label: 'AGENT LIST',         route: 'agent_list' },
   ];
 

@@ -90,7 +90,7 @@ const ApplyWallet = () => {
   const fetchWallets = async () => {
     try {
       showLoader();
-      const res = await getData('/localprime/wallet/list');
+      const res = await getData('/wallet/list');
       if (res && res.success) {
         setWalletRequests(res.data || []);
       }
@@ -117,7 +117,7 @@ const ApplyWallet = () => {
     setWalletTransactions([]);
     setLoadingDetails(true);
     try {
-      const res = await getData(`/localprime/wallet/details?wallet_id=${r._id}`);
+      const res = await getData(`/wallet/details?wallet_id=${r._id}`);
       if (res && res.success) {
         setSelectedRequest(res.data.wallet || r);
         setWalletTransactions(res.data.transactions || []);
@@ -289,7 +289,7 @@ const ApplyWallet = () => {
         agent_id: agentMongoId || agentId
       };
       
-      const res = await postData('/localprime/wallet/create', payload);
+      const res = await postData('/wallet/create', payload);
       
       if (res && res.success) {
         Swal.fire({

@@ -153,7 +153,7 @@ const WalletPayment = () => {
     };
 
     try {
-      const res = await getData('/localprime/wallet/list');
+      const res = await getData('/wallet/list');
       const wallets = res?.data || [];
       const match = wallets.find(w => 
         (w.walletNumber || '').toLowerCase() === trimmed.toLowerCase() ||
@@ -163,7 +163,7 @@ const WalletPayment = () => {
 
       if (match) {
         // Fetch detailed wallet info
-        const detailsRes = await getData(`/localprime/wallet/details?wallet_id=${match._id}`);
+        const detailsRes = await getData(`/wallet/details?wallet_id=${match._id}`);
         if (detailsRes && detailsRes.success && detailsRes.data && detailsRes.data.wallet) {
           const w = detailsRes.data.wallet;
           setName(getAgentNameForWallet(w));
@@ -232,7 +232,7 @@ const WalletPayment = () => {
     };
 
     try {
-      const res = await postData('/localprime/wallet/deposit', paymentPayload);
+      const res = await postData('/wallet/deposit', paymentPayload);
       if (res && res.success) {
         Swal.fire({
           icon: 'success',

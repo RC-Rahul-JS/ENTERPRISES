@@ -1,20 +1,20 @@
 /**
  * ╔══════════════════════════════════════════════════════════╗
- * ║         CENTRAL API CONFIGURATION — CHANGE HERE ONLY    ║
- * ║  To change the server IP/URL, edit BASE_URL below ONLY  ║
+ * ║         CENTRAL API CONFIGURATION                        ║
  * ╚══════════════════════════════════════════════════════════╝
- *
- * Usage in any component:
- *   import { BASE_URL } from '../../config/api';
- *   fetch(`${BASE_URL}/your-endpoint`)
  */
 
-// ✅ THE ONE URL TO RULE THEM ALL — change this and everything updates
-export const BASE_URL =
-  import.meta.env.VITE_LOCALPRIME_URL ||
-  'https://api.care2connect.in/badri_enterprises';
+// DOMAIN ko change karke aap local ya live pe test kar sakte hain.
+// Abhi ye aapke Live server (production) par set hai jahan Python automatically running hai:
+export const DOMAIN = 'https://api.care2connect.in';
 
-// Aadhar OTP endpoint (separate service — do not change with BASE_URL)
-export const AADHAR_OTP_URL =
-  import.meta.env.VITE_AADHAR_OTP_URL ||
-  'https://apipoultry.duniyape.in/api/aadhar';
+// --------------------------------------------------------------------------
+// AUTOMATICALLY GENERATED ROUTES — DO NOT MODIFY BELOW
+// --------------------------------------------------------------------------
+
+export const API_URL = `${DOMAIN}/badri_enterprises`;
+export const BASE_URL = `${API_URL}/localprime`;
+export const TRADE_URL = `${API_URL}`;
+
+// Aadhar OTP endpoint
+export const AADHAR_OTP_URL = 'https://apipoultry.duniyape.in/api/aadhar';

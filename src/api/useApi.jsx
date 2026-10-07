@@ -5,14 +5,17 @@ import { useLoader } from "../context/LoaderContext";
 import { showErrorAlert } from "../utils/alerts";
 import Cookies from "js-cookie";
 
-import { BASE_URL } from '../config/api';
+import { BASE_URL, TRADE_URL } from '../config/api';
 
 const API_BASE_URL = BASE_URL;
 
 const useApi = () => {
   const { showLoader, hideLoader } = useLoader(); // Use global loader
 
-  const getBaseUrl = () => {
+  const getBaseUrl = (endpoint = '') => {
+    if (endpoint.startsWith('/trade')) {
+      return TRADE_URL;
+    }
     return API_BASE_URL;
   };
 

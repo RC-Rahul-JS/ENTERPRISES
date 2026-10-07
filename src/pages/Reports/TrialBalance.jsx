@@ -4,7 +4,7 @@ import React from 'react';
 import Swal from 'sweetalert2';
 
 // NOTE: API_BASE_URL is assumed to be defined globally or passed down
-const API_BASE_URL = import.meta.env.VITE_API_URL; 
+import { API_URL as API_BASE_URL } from '../../config/api';
 
 // --- Helper Functions (Unchanged) ---
 

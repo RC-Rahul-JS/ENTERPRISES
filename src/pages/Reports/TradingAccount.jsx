@@ -2,8 +2,9 @@ import moment from 'moment';
 import React, { useRef, useState, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import { useReactToPrint } from "react-to-print";
+import { API_URL } from '../../config/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL; // Empty as per instructions, environment provides it
+const API_BASE_URL = API_URL;
 
 // --- Helper Functions ---
 

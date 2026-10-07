@@ -1,8 +1,9 @@
 import moment from 'moment';
 import React from 'react';
 import Swal from 'sweetalert2';
+import { API_URL } from '../../config/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = API_URL;
 
 // --- Helper Functions (Reused) ---
 

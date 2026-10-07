@@ -3,6 +3,7 @@ import useApi from "../../api/useApi";
 import Swal from 'sweetalert2';
 import axios from 'axios';
 import moment from 'moment';
+import { API_URL } from '../../config/api';
 const PayrollFormComplete = () => {
    const {getData,postData}= useApi()
   // --- Mock Data ---
@@ -440,7 +441,7 @@ useEffect(() => {
 }, [ledgerSearch, list]);
 
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = API_URL;
 const fetchLedgerData = async () => {
   try {
     // ✅ API Call (best practice using params)

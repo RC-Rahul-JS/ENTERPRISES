@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 import useApi from '../../api/useApi';
 import moment from 'moment';
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+import { API_URL as API_BASE_URL } from '../../config/api';
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { FileSpreadsheet } from 'lucide-react';

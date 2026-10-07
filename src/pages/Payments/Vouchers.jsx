@@ -3,7 +3,8 @@
 import moment from 'moment';
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+import { API_URL } from '../../config/api';
+const API_BASE_URL = API_URL;
 
 // Reusable Modal Component
 const VoucherDetailModal = ({ voucher, onClose }) => {
